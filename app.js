@@ -139,7 +139,7 @@
             menu.categories.forEach(category => {
                 const totals = calculateCategoryTotals(category);
                 let rows = '';
-                category.items.forEach(line => {
+                getSortedCategoryItems(category).forEach(line => {
                     const calc = calculateMenuLine(line);
                     if (!calc) return;
                     const costColor = calc.theoreticalPct > 35 ? '#e74c3c' : calc.theoreticalPct >= 30 ? '#f39c12' : '#18bc9c';
