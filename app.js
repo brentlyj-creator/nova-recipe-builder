@@ -3747,4 +3747,3 @@ function generateMenuItemPptx(items) {
     pptx.writeFile({ fileName: `MenuItemRecipes_${Date.now()}.pptx` });
 }
 
-    
