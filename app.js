@@ -2162,6 +2162,128 @@ function executeBulkExport() {
             });
         }
 
+        function traceItemUsageInIngredient(ing, targetItemId, multiplier, pathLabel, results, seenPrepIds = new Set()) {
+            if (!ing) return;
+            const qty = parseFloat(ing.qty) || 0;
+            if (!qty || !multiplier) return;
+
+            if (ing.type === 'raw') {
+                if (ing.itemId !== targetItemId) return;
+                const item = itemDatabase.find(i => i.id === targetItemId);
+                if (!item) return;
+                const qtyInRecipeUnit = convertQtyUnits(qty, ing.unit, item.recipeMeasure);
+                results.push({
+                    path: pathLabel,
+                    qtyPerUnit: qty,
+                    unit: ing.unit,
+                    qtyInRecipeUnitPerUnit: qtyInRecipeUnit,
+                    totalTheoreticalQty: qtyInRecipeUnit * multiplier
+                });
+                return;
+            }
+
+            if (ing.type === 'prep') {
+                const prep = prepDatabase.find(p => p.id === ing.itemId);
+                if (!prep || seenPrepIds.has(prep.id) || !Array.isArray(prep.ingredients)) return;
+                const nextSeen = new Set(seenPrepIds);
+                nextSeen.add(prep.id);
+
+                const prepUnit = ing.unit === 'Portion' ? prep.yieldUnit : ing.unit;
+                const qtyInYieldUnit = convertQtyUnits(qty, prepUnit, prep.yieldUnit);
+                const totalPrepQtyNeeded = qtyInYieldUnit * multiplier;
+                const yieldAmount = parseFloat(prep.yieldAmount) || 0;
+                if (!yieldAmount) return;
+                const batchMultiplier = totalPrepQtyNeeded / yieldAmount;
+
+                const nextPath = pathLabel ? `${pathLabel} → ${prep.name}` : prep.name;
+                prep.ingredients.forEach(subIng => {
+                    traceItemUsageInIngredient(subIng, targetItemId, batchMultiplier, nextPath, results, nextSeen);
+                });
+            }
+        }
+
+        function computeItemUsageBreakdown(itemId, property) {
+            const rows = [];
+            const menus = propertyMenuDatabase.filter(m => m.property === property);
+            menus.forEach(menu => {
+                menu.categories.forEach(category => {
+                    (category.items || []).forEach(line => {
+                        const soldQty = parseFloat(line.soldQty) || 0;
+                        if (!soldQty) return;
+                        const recipe = menuDatabase.find(m => m.id === line.recipeId && m.property === property);
+                        if (!recipe || !Array.isArray(recipe.ingredients)) return;
+
+                        const results = [];
+                        recipe.ingredients.forEach(ing => {
+                            traceItemUsageInIngredient(ing, itemId, soldQty, '', results, new Set());
+                        });
+
+                        results.forEach(r => {
+                            rows.push({
+                                menuItemName: recipe.name,
+                                category: category.name,
+                                soldQty,
+                                path: r.path || 'Direct ingredient',
+                                qtyPerUnit: r.qtyPerUnit,
+                                unit: r.unit,
+                                qtyInRecipeUnitPerUnit: r.qtyInRecipeUnitPerUnit,
+                                totalTheoreticalQty: r.totalTheoreticalQty
+                            });
+                        });
+                    });
+                });
+            });
+            rows.sort((a, b) => b.totalTheoreticalQty - a.totalTheoreticalQty);
+            return rows;
+        }
+
+        function openItemDrilldown(itemId) {
+            const item = itemDatabase.find(i => i.id === itemId);
+            if (!item) return;
+            const rows = computeItemUsageBreakdown(itemId, currentProperty);
+            const title = document.getElementById('itemDrilldownTitle');
+            const body = document.getElementById('itemDrilldownBody');
+            if (title) title.textContent = `Where "${item.name}" Is Used — ${currentProperty}`;
+
+            const totalTheoretical = rows.reduce((sum, r) => sum + r.totalTheoreticalQty, 0);
+
+            if (rows.length === 0) {
+                body.innerHTML = `<p style="color:#777;">No menu items with Sold Qty currently use this item for ${escapeHtml(currentProperty)}.</p>`;
+            } else {
+                const tableRows = rows.map(r => `
+                    <tr>
+                        <td><strong>${escapeHtml(r.menuItemName)}</strong><br><span style="font-size:0.75rem;color:#7f8c8d;">${escapeHtml(r.category)}</span></td>
+                        <td>${escapeHtml(r.path)}</td>
+                        <td>${r.qtyPerUnit} ${escapeHtml(r.unit)}</td>
+                        <td>${r.soldQty}</td>
+                        <td style="font-weight:bold;color:var(--primary);">${r.totalTheoreticalQty.toFixed(2)} ${escapeHtml(item.recipeMeasure)}</td>
+                    </tr>`).join('');
+
+                body.innerHTML = `
+                    <p style="color:#7f8c8d;font-size:0.85rem;margin-top:-5px;">Theoretical usage is driven by Sold Qty on your Menu Builder. Items used only inside a Prep Recipe show the full path (e.g., Prep Name → Menu Item).</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Menu Item</th>
+                                <th>Used Via</th>
+                                <th>Qty per Serving/Batch</th>
+                                <th>Sold Qty</th>
+                                <th>Theoretical Usage</th>
+                            </tr>
+                        </thead>
+                        <tbody>${tableRows}</tbody>
+                        <tfoot>
+                            <tr style="background-color:#e9ecef;font-weight:bold;">
+                                <td colspan="4" style="text-align:right;">Total Theoretical Usage</td>
+                                <td style="color:var(--primary);">${totalTheoretical.toFixed(2)} ${escapeHtml(item.recipeMeasure)}</td>
+                            </tr>
+                        </tfoot>
+                    </table>`;
+            }
+
+            document.getElementById('itemDrilldownModal').style.display = 'block';
+        }
+
         function renderVarianceTable() {
             const tbody = document.getElementById('varianceTableBody');
             if (!tbody) return;
@@ -2208,7 +2330,7 @@ function executeBulkExport() {
                 const actualQtyDisplay = r.hasCalc ? `${r.actualQty.toFixed(2)} ${escapeHtml(r.item.recipeMeasure)}` : '\u2014';
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td><strong>${escapeHtml(r.item.name)}</strong><br><span style="font-size:0.75rem;color:#7f8c8d;">${escapeHtml(r.item.packType || '')} ${r.item.units || ''} x ${r.item.unitSize || ''} ${escapeHtml(r.item.unitMeasure || '')}</span></td>
+                    <td><strong style="cursor:pointer;color:#2980b9;text-decoration:underline;" onclick="openItemDrilldown('${r.item.id}')" title="Click to see which recipes use this item">${escapeHtml(r.item.name)}</strong><br><span style="font-size:0.75rem;color:#7f8c8d;">${escapeHtml(r.item.packType || '')} ${r.item.units || ''} x ${r.item.unitSize || ''} ${escapeHtml(r.item.unitMeasure || '')}</span></td>
                     <td>${r.theoreticalQty.toFixed(2)} ${escapeHtml(r.item.recipeMeasure)}</td>
                     <td style="white-space:nowrap;">
                         <input type="number" step="0.01" placeholder="Cases" value="${entry.opening.cases || ''}" style="width:65px" oninput="updateInventoryField('${r.item.id}','opening','cases',this.value)">
