@@ -141,6 +141,7 @@
         </div>
 
         <button class="nav-btn" onclick="openTab(event, 'hotels')">Property Management</button>
+        <button class="nav-btn" onclick="openTab(event, 'variance')">Inventory Variance</button>
         <div class="sidebar-sync-tools">
             <div class="sidebar-sync-title">Quick Data Tools</div>
             <button class="sidebar-tool-btn" type="button" onclick="saveAllDataToBrowser(true)">Save Now</button>
@@ -323,6 +324,42 @@
                 </div>
                 <button class="btn-submit" style="background-color: var(--info);" onclick="executeSelectiveClone()">Copy Selected Recipes</button>
             </div>
+        </div>
+
+        <div id="variance" class="tab-content">
+            <h2>Inventory Variance (<span class="display-property-name"></span>)</h2>
+            <p style="color:#7f8c8d;font-size:0.9rem;margin-top:-10px;">
+                Theoretical usage is calculated automatically from Sold Qty on your Menu Builder. Enter Opening Inventory, Purchases (Cases + Each/Pack), and Closing Inventory below to see variance.
+            </p>
+            <div class="table-tools">
+                <h3>Variance by Item</h3>
+                <div class="filter-controls" style="flex-wrap:nowrap;justify-content:flex-end;">
+                    <select id="varianceSortMode" onchange="renderVarianceTable()" style="width:auto;min-width:220px;padding:6px;border-radius:4px;">
+                        <option value="qty-high-low">Variance Qty: High to Low</option>
+                        <option value="qty-low-high">Variance Qty: Low to High</option>
+                        <option value="cost-high-low">Variance $: High to Low</option>
+                        <option value="cost-low-high">Variance $: Low to High</option>
+                    </select>
+                    <button type="button" class="action-btn" style="background-color:var(--cancel)" onclick="resetVarianceCounts()">Reset Counts</button>
+                    <button type="button" class="btn-submit" onclick="printVarianceReport()" style="width:auto;padding:8px 16px;">🖨 Export Report</button>
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Theoretical Usage</th>
+                        <th>Opening Inv.</th>
+                        <th>Purchases (Cases / +Each)</th>
+                        <th>Closing Inv.</th>
+                        <th>Actual Usage</th>
+                        <th>Variance (Qty)</th>
+                        <th>Cost / Unit</th>
+                        <th>Variance ($)</th>
+                    </tr>
+                </thead>
+                <tbody id="varianceTableBody"></tbody>
+            </table>
         </div>
 
         <div id="items" class="tab-content">
