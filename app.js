@@ -12,6 +12,7 @@
         let currentProperty = propertyDatabase[0];
 		let menuItemCategoryDatabase = ['Appies', 'Salads', 'Entrees', 'LWB'];
 		let prepCategoryDatabase = [];
+        let inventoryCountDatabase = {}; // { [property]: { [itemId]: { opening:number, closingQty:number, purchases:[{cases:number, packQty:number}] } } }
         let currentPrepIngredients = [];
         let currentMenuIngredients = [];
         let activeModalTarget = ''; 
@@ -462,6 +463,7 @@ function executeBulkExport() {
                 supplierDatabase: Array.isArray(supplierDatabase) ? [...supplierDatabase] : [],
                 menuItemCategoryDatabase: Array.isArray(menuItemCategoryDatabase) ? [...menuItemCategoryDatabase] : [],
                 prepCategoryDatabase: Array.isArray(prepCategoryDatabase) ? [...prepCategoryDatabase] : [],
+                inventoryCountDatabase: (inventoryCountDatabase && typeof inventoryCountDatabase === 'object') ? inventoryCountDatabase : {},
                 itemDatabase: Array.isArray(itemDatabase) ? [...itemDatabase] : [],
                 prepDatabase: Array.isArray(prepDatabase) ? [...prepDatabase] : [],
                 menuDatabase: Array.isArray(menuDatabase) ? [...menuDatabase] : [],
@@ -476,6 +478,7 @@ function executeBulkExport() {
             supplierDatabase = Array.isArray(data.supplierDatabase) ? data.supplierDatabase : ['Sysco', 'GFS', 'Local Market'];
             menuItemCategoryDatabase = Array.isArray(data.menuItemCategoryDatabase) ? data.menuItemCategoryDatabase : ['Appies', 'Salads', 'Entrees', 'LWB'];
             prepCategoryDatabase = Array.isArray(data.prepCategoryDatabase) ? data.prepCategoryDatabase : [];
+            inventoryCountDatabase = (data.inventoryCountDatabase && typeof data.inventoryCountDatabase === 'object') ? data.inventoryCountDatabase : {};
             itemDatabase = Array.isArray(data.itemDatabase) ? data.itemDatabase : [];
             prepDatabase = Array.isArray(data.prepDatabase) ? data.prepDatabase : [];
             menuDatabase = Array.isArray(data.menuDatabase) ? data.menuDatabase : [];
@@ -694,6 +697,7 @@ function executeBulkExport() {
             renderPropertyMenuPicker();
             renderPropertyMenus();
             renderSelectedPropertyMenuDetails();
+            renderVarianceTable();
 
             const propertySelector = document.getElementById('globalPropertySelector');
             if (propertySelector && currentProperty) propertySelector.value = currentProperty;
@@ -1900,6 +1904,7 @@ function executeBulkExport() {
             renderItemTable();
             renderPropertyMenus();
             renderSelectedPropertyMenuDetails();
+            renderVarianceTable();
             
             document.getElementById('prepForm').reset();
             document.getElementById('prepSteps').innerHTML = ''; // Clear RTE
@@ -1926,6 +1931,7 @@ function executeBulkExport() {
             if (tabName === 'menu-builder') { renderPropertyMenuPicker(); renderPropertyMenus(); renderSelectedPropertyMenuDetails(); }
             else if (tabName === 'menu-items') { updateMenuCategoryFilterOptions(); renderMenuTable(); }
             else if (tabName === 'prep') { renderPrepTable(); }
+            else if (tabName === 'variance') { renderVarianceTable(); }
         }
 
         function toggleDropdown(evt, menuId) {
@@ -1977,6 +1983,7 @@ function executeBulkExport() {
         function canConvertUnits(fromUnit, toUnit) { const a=getUnitFamily(fromUnit), b=getUnitFamily(toUnit); return !!a && a === b && a !== 'count'; }
         function getUnitRatio(fromUnit, toUnit) { if (fromUnit === toUnit) return 1; const f=getUnitFamily(fromUnit); if (!f || f !== getUnitFamily(toUnit) || f === 'count') return null; return UNIT_CONVERSIONS[f][toUnit] / UNIT_CONVERSIONS[f][fromUnit]; }
         function convertCostPerUnit(costPerFromUnit, fromUnit, toUnit) { const ratio=getUnitRatio(fromUnit,toUnit); return ratio === null ? costPerFromUnit : costPerFromUnit * ratio; }
+        function convertQtyUnits(qty, fromUnit, toUnit) { if (fromUnit === toUnit) return qty; const ratio = getUnitRatio(toUnit, fromUnit); return ratio === null ? qty : qty * ratio; }
         function getCompatibleUnits(unit) { const f=getUnitFamily(unit); if (f === 'volume') return Object.keys(UNIT_CONVERSIONS.volume); if (f === 'weight') return Object.keys(UNIT_CONVERSIONS.weight); return ['Each']; }
         function calculateUnitCost(item) {
             if (!item) return null;
@@ -2027,6 +2034,206 @@ function executeBulkExport() {
             const yieldAmount = parseFloat(prep?.yieldAmount || 0);
             if (!yieldAmount) return 0;
             return calculatePrepTotalCost(prep, seenPrepIds) / yieldAmount;
+        }
+
+        // --- INVENTORY VARIANCE ENGINE ---
+        function accumulateIngredientUsage(ing, multiplier, usageMap, seenPrepIds = new Set()) {
+            if (!ing) return;
+            const qty = parseFloat(ing.qty) || 0;
+            if (!qty || !multiplier) return;
+
+            if (ing.type === 'raw') {
+                const item = itemDatabase.find(i => i.id === ing.itemId);
+                if (!item) return;
+                const qtyInRecipeUnit = convertQtyUnits(qty, ing.unit, item.recipeMeasure);
+                const totalQty = qtyInRecipeUnit * multiplier;
+                if (!usageMap[item.id]) usageMap[item.id] = { itemId: item.id, theoreticalQty: 0 };
+                usageMap[item.id].theoreticalQty += totalQty;
+                return;
+            }
+
+            if (ing.type === 'prep') {
+                const prep = prepDatabase.find(p => p.id === ing.itemId);
+                if (!prep || seenPrepIds.has(prep.id)) return;
+                const nextSeen = new Set(seenPrepIds);
+                nextSeen.add(prep.id);
+
+                const prepUnit = ing.unit === 'Portion' ? prep.yieldUnit : ing.unit;
+                const qtyInYieldUnit = convertQtyUnits(qty, prepUnit, prep.yieldUnit);
+                const totalPrepQtyNeeded = qtyInYieldUnit * multiplier;
+                const yieldAmount = parseFloat(prep.yieldAmount) || 0;
+                if (!yieldAmount) return;
+                const batchMultiplier = totalPrepQtyNeeded / yieldAmount;
+
+                (prep.ingredients || []).forEach(subIng => {
+                    accumulateIngredientUsage(subIng, batchMultiplier, usageMap, nextSeen);
+                });
+            }
+        }
+
+        function calculateTheoreticalUsageForProperty(property) {
+            const usageMap = {};
+            const menus = propertyMenuDatabase.filter(m => m.property === property);
+            menus.forEach(menu => {
+                menu.categories.forEach(category => {
+                    (category.items || []).forEach(line => {
+                        const soldQty = parseFloat(line.soldQty) || 0;
+                        if (!soldQty) return;
+                        const recipe = menuDatabase.find(m => m.id === line.recipeId && m.property === property);
+                        if (!recipe || !Array.isArray(recipe.ingredients)) return;
+                        recipe.ingredients.forEach(ing => {
+                            accumulateIngredientUsage(ing, soldQty, usageMap, new Set());
+                        });
+                    });
+                });
+            });
+            return usageMap;
+        }
+
+        function convertPurchaseToRecipeUnits(item, cases, packQty) {
+            if (!item) return 0;
+            const casesNum = parseFloat(cases) || 0;
+            const packQtyNum = parseFloat(packQty) || 0;
+            const unitsPerPack = parseFloat(item.units) || 1;
+            const unitSize = parseFloat(item.unitSize) || 1;
+            const yieldFactor = (parseFloat(item.yieldPct) || 100) / 100;
+
+            const totalPackUnits = (casesNum * unitsPerPack) + packQtyNum;
+            const qtyInUnitMeasure = totalPackUnits * unitSize;
+            const qtyInRecipeUnit = convertQtyUnits(qtyInUnitMeasure, item.unitMeasure, item.recipeMeasure);
+            return qtyInRecipeUnit * yieldFactor;
+        }
+
+        function getInventoryEntry(property, itemId) {
+            if (!inventoryCountDatabase[property]) inventoryCountDatabase[property] = {};
+            if (!inventoryCountDatabase[property][itemId]) {
+                inventoryCountDatabase[property][itemId] = { opening: 0, closingQty: 0, purchases: [{ cases: 0, packQty: 0 }] };
+            }
+            if (!Array.isArray(inventoryCountDatabase[property][itemId].purchases) || inventoryCountDatabase[property][itemId].purchases.length === 0) {
+                inventoryCountDatabase[property][itemId].purchases = [{ cases: 0, packQty: 0 }];
+            }
+            return inventoryCountDatabase[property][itemId];
+        }
+
+        function calculateActualUsage(property, item) {
+            const entry = getInventoryEntry(property, item.id);
+            const opening = parseFloat(entry.opening) || 0;
+            const closing = parseFloat(entry.closingQty) || 0;
+            const purchasedQty = (entry.purchases || []).reduce((sum, p) => sum + convertPurchaseToRecipeUnits(item, p.cases, p.packQty), 0);
+            return opening + purchasedQty - closing;
+        }
+
+        function getVarianceScopeItems() {
+            const usageMap = calculateTheoreticalUsageForProperty(currentProperty);
+            const usedItemIds = new Set(Object.keys(usageMap));
+            return itemDatabase.filter(item => usedItemIds.has(item.id)).map(item => {
+                const theoreticalQty = usageMap[item.id]?.theoreticalQty || 0;
+                const actualQty = calculateActualUsage(currentProperty, item);
+                const varianceQty = actualQty - theoreticalQty;
+                const costPerUnit = calculateUnitCost(item) || 0;
+                const varianceCost = varianceQty * costPerUnit;
+                return { item, theoreticalQty, actualQty, varianceQty, varianceCost, costPerUnit };
+            });
+        }
+
+        function renderVarianceTable() {
+            const tbody = document.getElementById('varianceTableBody');
+            if (!tbody) return;
+            const sortMode = document.getElementById('varianceSortMode')?.value || 'qty-high-low';
+            let rows = getVarianceScopeItems();
+
+            if (sortMode === 'qty-high-low') rows.sort((a, b) => b.varianceQty - a.varianceQty);
+            else if (sortMode === 'qty-low-high') rows.sort((a, b) => a.varianceQty - b.varianceQty);
+            else if (sortMode === 'cost-high-low') rows.sort((a, b) => b.varianceCost - a.varianceCost);
+            else if (sortMode === 'cost-low-high') rows.sort((a, b) => a.varianceCost - b.varianceCost);
+
+            tbody.innerHTML = '';
+            if (rows.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:#777;">No used items found for ${escapeHtml(currentProperty)}. Sell menu items with Sold Qty entered first.</td></tr>`;
+                return;
+            }
+
+            rows.forEach(r => {
+                const entry = getInventoryEntry(currentProperty, r.item.id);
+                const p0 = entry.purchases[0] || { cases: 0, packQty: 0 };
+                const varianceColor = r.varianceQty > 0 ? '#e74c3c' : (r.varianceQty < 0 ? '#3498db' : '#18bc9c');
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${escapeHtml(r.item.name)}</strong><br><span style="font-size:0.75rem;color:#7f8c8d;">${escapeHtml(r.item.packType || '')} ${r.item.units || ''} x ${r.item.unitSize || ''} ${escapeHtml(r.item.unitMeasure || '')}</span></td>
+                    <td>${r.theoreticalQty.toFixed(2)} ${escapeHtml(r.item.recipeMeasure)}</td>
+                    <td><input type="number" step="0.01" value="${entry.opening || 0}" style="width:80px" onchange="updateInventoryField('${r.item.id}','opening',this.value)"></td>
+                    <td style="white-space:nowrap;">
+                        <input type="number" step="0.01" placeholder="Cases" value="${p0.cases || ''}" style="width:65px" onchange="updatePurchaseField('${r.item.id}',0,'cases',this.value)">
+                        <input type="number" step="0.01" placeholder="+Each/Pk" value="${p0.packQty || ''}" style="width:70px" onchange="updatePurchaseField('${r.item.id}',0,'packQty',this.value)">
+                    </td>
+                    <td><input type="number" step="0.01" value="${entry.closingQty || 0}" style="width:80px" onchange="updateInventoryField('${r.item.id}','closingQty',this.value)"></td>
+                    <td>${r.actualQty.toFixed(2)} ${escapeHtml(r.item.recipeMeasure)}</td>
+                    <td style="font-weight:bold;color:${varianceColor}">${r.varianceQty >= 0 ? '+' : ''}${r.varianceQty.toFixed(2)} ${escapeHtml(r.item.recipeMeasure)}</td>
+                    <td>$${r.costPerUnit.toFixed(4)}</td>
+                    <td style="font-weight:bold;color:${varianceColor}">${r.varianceCost >= 0 ? '+' : ''}$${r.varianceCost.toFixed(2)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateInventoryField(itemId, field, value) {
+            const entry = getInventoryEntry(currentProperty, itemId);
+            entry[field] = parseFloat(value) || 0;
+            renderVarianceTable();
+            saveAllDataToBrowser(false);
+        }
+
+        function updatePurchaseField(itemId, index, field, value) {
+            const entry = getInventoryEntry(currentProperty, itemId);
+            if (!entry.purchases[index]) entry.purchases[index] = { cases: 0, packQty: 0 };
+            entry.purchases[index][field] = parseFloat(value) || 0;
+            renderVarianceTable();
+            saveAllDataToBrowser(false);
+        }
+
+        function resetVarianceCounts() {
+            if (!confirm(`Reset all Opening/Purchases/Closing entries for ${currentProperty}? This cannot be undone.`)) return;
+            inventoryCountDatabase[currentProperty] = {};
+            renderVarianceTable();
+            saveAllDataToBrowser(false);
+        }
+
+        function printVarianceReport() {
+            const rows = getVarianceScopeItems().sort((a, b) => b.varianceCost - a.varianceCost);
+            const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+            const bodyRows = rows.map(r => `
+                <tr>
+                    <td>${escapeHtml(r.item.name)}</td>
+                    <td>${r.theoreticalQty.toFixed(2)} ${escapeHtml(r.item.recipeMeasure)}</td>
+                    <td>${r.actualQty.toFixed(2)} ${escapeHtml(r.item.recipeMeasure)}</td>
+                    <td>${r.varianceQty >= 0 ? '+' : ''}${r.varianceQty.toFixed(2)} ${escapeHtml(r.item.recipeMeasure)}</td>
+                    <td>$${r.costPerUnit.toFixed(4)}</td>
+                    <td>${r.varianceCost >= 0 ? '+' : ''}$${r.varianceCost.toFixed(2)}</td>
+                </tr>`).join('');
+
+            const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+                <title>${currentProperty} \u2014 Inventory Variance Report</title>
+                <style>
+                    body { font-family: 'Segoe UI', sans-serif; margin: 30px; color: #000; }
+                    h1 { font-size: 1.4rem; margin-bottom: 2px; }
+                    .subtitle { font-size: 0.9rem; margin-bottom: 20px; }
+                    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+                    th { border-bottom: 2px solid #000; padding: 8px 10px; text-align: left; }
+                    td { padding: 6px 10px; border-bottom: 1px solid #ccc; }
+                    @media print { button { display:none; } }
+                </style>
+                </head><body>
+                <h1>${currentProperty} \u2014 Inventory Variance Report</h1>
+                <div class="subtitle">Generated ${date} \u2014 Sorted by Variance ($), Highest to Lowest</div>
+                <table>
+                    <thead><tr><th>Item</th><th>Theoretical Usage</th><th>Actual Usage</th><th>Variance (Qty)</th><th>Cost / Unit</th><th>Variance ($)</th></tr></thead>
+                    <tbody>${bodyRows}</tbody>
+                </table>
+                <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 100); }; window.onafterprint = function(){ setTimeout(function(){ window.close(); }, 150); };</script>
+                </body></html>`;
+            const w = window.open('', '_blank');
+            w.document.write(html);
+            w.document.close();
         }
 
         function calculateMenuFoodCost(menu) {
