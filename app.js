@@ -12,7 +12,8 @@
         let currentProperty = propertyDatabase[0];
 		let menuItemCategoryDatabase = ['Appies', 'Salads', 'Entrees', 'LWB'];
 		let prepCategoryDatabase = [];
-        let inventoryCountDatabase = {}; // { [property]: { [itemId]: { opening:number, closingQty:number, purchases:[{cases:number, packQty:number}] } } }
+        let inventoryCountDatabase = {}; // { [property]: { [itemId]: { opening:{cases,packQty}, closing:{cases,packQty}, purchases:[{cases,packQty}] } } }
+        let varianceCalcCache = {}; // { [property]: { [itemId]: {theoreticalQty, actualQty, varianceQty, varianceCost, costPerUnit} } }
         let currentPrepIngredients = [];
         let currentMenuIngredients = [];
         let activeModalTarget = ''; 
@@ -2107,20 +2108,34 @@ function executeBulkExport() {
         function getInventoryEntry(property, itemId) {
             if (!inventoryCountDatabase[property]) inventoryCountDatabase[property] = {};
             if (!inventoryCountDatabase[property][itemId]) {
-                inventoryCountDatabase[property][itemId] = { opening: 0, closingQty: 0, purchases: [{ cases: 0, packQty: 0 }] };
+                inventoryCountDatabase[property][itemId] = {
+                    opening: { cases: 0, packQty: 0 },
+                    closing: { cases: 0, packQty: 0 },
+                    purchases: [{ cases: 0, packQty: 0 }]
+                };
             }
-            if (!Array.isArray(inventoryCountDatabase[property][itemId].purchases) || inventoryCountDatabase[property][itemId].purchases.length === 0) {
-                inventoryCountDatabase[property][itemId].purchases = [{ cases: 0, packQty: 0 }];
-            }
-            return inventoryCountDatabase[property][itemId];
+            const entry = inventoryCountDatabase[property][itemId];
+            if (!entry.opening || typeof entry.opening !== 'object') entry.opening = { cases: parseFloat(entry.opening) || 0, packQty: 0 };
+            if (!entry.closing || typeof entry.closing !== 'object') entry.closing = { cases: parseFloat(entry.closingQty) || 0, packQty: 0 };
+            if (!Array.isArray(entry.purchases) || entry.purchases.length === 0) entry.purchases = [{ cases: 0, packQty: 0 }];
+            return entry;
         }
 
         function calculateActualUsage(property, item) {
             const entry = getInventoryEntry(property, item.id);
-            const opening = parseFloat(entry.opening) || 0;
-            const closing = parseFloat(entry.closingQty) || 0;
+            const openingQty = convertPurchaseToRecipeUnits(item, entry.opening.cases, entry.opening.packQty);
+            const closingQty = convertPurchaseToRecipeUnits(item, entry.closing.cases, entry.closing.packQty);
             const purchasedQty = (entry.purchases || []).reduce((sum, p) => sum + convertPurchaseToRecipeUnits(item, p.cases, p.packQty), 0);
-            return opening + purchasedQty - closing;
+            return openingQty + purchasedQty - closingQty;
+        }
+
+        function calculateVariance() {
+            const rows = getVarianceScopeItems();
+            const cache = {};
+            rows.forEach(r => { cache[r.item.id] = r; });
+            varianceCalcCache[currentProperty] = cache;
+            renderVarianceTable();
+            showToast('Variance calculated.', 'success');
         }
 
         function getVarianceScopeItems() {
@@ -2140,66 +2155,117 @@ function executeBulkExport() {
             const tbody = document.getElementById('varianceTableBody');
             if (!tbody) return;
             const sortMode = document.getElementById('varianceSortMode')?.value || 'qty-high-low';
-            let rows = getVarianceScopeItems();
+            const searchText = (document.getElementById('varianceSearchInput')?.value || '').toLowerCase();
+            const cache = varianceCalcCache[currentProperty] || {};
 
-            if (sortMode === 'qty-high-low') rows.sort((a, b) => b.varianceQty - a.varianceQty);
-            else if (sortMode === 'qty-low-high') rows.sort((a, b) => a.varianceQty - b.varianceQty);
-            else if (sortMode === 'cost-high-low') rows.sort((a, b) => b.varianceCost - a.varianceCost);
-            else if (sortMode === 'cost-low-high') rows.sort((a, b) => a.varianceCost - b.varianceCost);
+            const usageMap = calculateTheoreticalUsageForProperty(currentProperty);
+            const usedItemIds = new Set(Object.keys(usageMap));
+            let items = itemDatabase.filter(item => usedItemIds.has(item.id));
+            if (searchText) items = items.filter(item => (item.name || '').toLowerCase().includes(searchText));
+
+            let rows = items.map(item => {
+                const cached = cache[item.id];
+                return {
+                    item,
+                    theoreticalQty: usageMap[item.id]?.theoreticalQty || 0,
+                    hasCalc: !!cached,
+                    actualQty: cached ? cached.actualQty : null,
+                    varianceQty: cached ? cached.varianceQty : null,
+                    varianceCost: cached ? cached.varianceCost : null,
+                    costPerUnit: cached ? cached.costPerUnit : (calculateUnitCost(item) || 0)
+                };
+            });
+
+            if (sortMode === 'alpha') rows.sort((a, b) => a.item.name.localeCompare(b.item.name));
+            else if (sortMode === 'qty-high-low') rows.sort((a, b) => (b.varianceQty ?? -Infinity) - (a.varianceQty ?? -Infinity));
+            else if (sortMode === 'qty-low-high') rows.sort((a, b) => (a.varianceQty ?? Infinity) - (b.varianceQty ?? Infinity));
+            else if (sortMode === 'cost-high-low') rows.sort((a, b) => (b.varianceCost ?? -Infinity) - (a.varianceCost ?? -Infinity));
+            else if (sortMode === 'cost-low-high') rows.sort((a, b) => (a.varianceCost ?? Infinity) - (b.varianceCost ?? Infinity));
 
             tbody.innerHTML = '';
             if (rows.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:#777;">No used items found for ${escapeHtml(currentProperty)}. Sell menu items with Sold Qty entered first.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:#777;">No used items found for ${escapeHtml(currentProperty)}${searchText ? ' matching your search' : ''}. Sell menu items with Sold Qty entered first.</td></tr>`;
                 return;
             }
 
             rows.forEach(r => {
                 const entry = getInventoryEntry(currentProperty, r.item.id);
                 const p0 = entry.purchases[0] || { cases: 0, packQty: 0 };
-                const varianceColor = r.varianceQty > 0 ? '#e74c3c' : (r.varianceQty < 0 ? '#3498db' : '#18bc9c');
+                const varianceColor = !r.hasCalc ? '#aaa' : (r.varianceQty > 0 ? '#e74c3c' : (r.varianceQty < 0 ? '#3498db' : '#18bc9c'));
+                const varianceQtyDisplay = r.hasCalc ? `${r.varianceQty >= 0 ? '+' : ''}${r.varianceQty.toFixed(2)} ${escapeHtml(r.item.recipeMeasure)}` : '\u2014';
+                const varianceCostDisplay = r.hasCalc ? `${r.varianceCost >= 0 ? '+' : ''}$${r.varianceCost.toFixed(2)}` : '\u2014';
+                const actualQtyDisplay = r.hasCalc ? `${r.actualQty.toFixed(2)} ${escapeHtml(r.item.recipeMeasure)}` : '\u2014';
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td><strong>${escapeHtml(r.item.name)}</strong><br><span style="font-size:0.75rem;color:#7f8c8d;">${escapeHtml(r.item.packType || '')} ${r.item.units || ''} x ${r.item.unitSize || ''} ${escapeHtml(r.item.unitMeasure || '')}</span></td>
                     <td>${r.theoreticalQty.toFixed(2)} ${escapeHtml(r.item.recipeMeasure)}</td>
-                    <td><input type="number" step="0.01" value="${entry.opening || 0}" style="width:80px" onchange="updateInventoryField('${r.item.id}','opening',this.value)"></td>
                     <td style="white-space:nowrap;">
-                        <input type="number" step="0.01" placeholder="Cases" value="${p0.cases || ''}" style="width:65px" onchange="updatePurchaseField('${r.item.id}',0,'cases',this.value)">
-                        <input type="number" step="0.01" placeholder="+Each/Pk" value="${p0.packQty || ''}" style="width:70px" onchange="updatePurchaseField('${r.item.id}',0,'packQty',this.value)">
+                        <input type="number" step="0.01" placeholder="Cases" value="${entry.opening.cases || ''}" style="width:65px" oninput="updateInventoryField('${r.item.id}','opening','cases',this.value)">
+                        <input type="number" step="0.01" placeholder="+Each/Pk" value="${entry.opening.packQty || ''}" style="width:70px" oninput="updateInventoryField('${r.item.id}','opening','packQty',this.value)">
                     </td>
-                    <td><input type="number" step="0.01" value="${entry.closingQty || 0}" style="width:80px" onchange="updateInventoryField('${r.item.id}','closingQty',this.value)"></td>
-                    <td>${r.actualQty.toFixed(2)} ${escapeHtml(r.item.recipeMeasure)}</td>
-                    <td style="font-weight:bold;color:${varianceColor}">${r.varianceQty >= 0 ? '+' : ''}${r.varianceQty.toFixed(2)} ${escapeHtml(r.item.recipeMeasure)}</td>
+                    <td style="white-space:nowrap;">
+                        <input type="number" step="0.01" placeholder="Cases" value="${p0.cases || ''}" style="width:65px" oninput="updatePurchaseField('${r.item.id}',0,'cases',this.value)">
+                        <input type="number" step="0.01" placeholder="+Each/Pk" value="${p0.packQty || ''}" style="width:70px" oninput="updatePurchaseField('${r.item.id}',0,'packQty',this.value)">
+                    </td>
+                    <td style="white-space:nowrap;">
+                        <input type="number" step="0.01" placeholder="Cases" value="${entry.closing.cases || ''}" style="width:65px" oninput="updateInventoryField('${r.item.id}','closing','cases',this.value)">
+                        <input type="number" step="0.01" placeholder="+Each/Pk" value="${entry.closing.packQty || ''}" style="width:70px" oninput="updateInventoryField('${r.item.id}','closing','packQty',this.value)">
+                    </td>
+                    <td>${actualQtyDisplay}</td>
+                    <td style="font-weight:bold;color:${varianceColor}">${varianceQtyDisplay}</td>
                     <td>$${r.costPerUnit.toFixed(4)}</td>
-                    <td style="font-weight:bold;color:${varianceColor}">${r.varianceCost >= 0 ? '+' : ''}$${r.varianceCost.toFixed(2)}</td>
+                    <td style="font-weight:bold;color:${varianceColor}">${varianceCostDisplay}</td>
                 `;
                 tbody.appendChild(tr);
             });
         }
 
-        function updateInventoryField(itemId, field, value) {
+        function updateInventoryField(itemId, section, subField, value) {
             const entry = getInventoryEntry(currentProperty, itemId);
-            entry[field] = parseFloat(value) || 0;
-            renderVarianceTable();
-            saveAllDataToBrowser(false);
+            if (!entry[section] || typeof entry[section] !== 'object') entry[section] = { cases: 0, packQty: 0 };
+            entry[section][subField] = parseFloat(value) || 0;
+            debouncedSaveVariance();
         }
 
         function updatePurchaseField(itemId, index, field, value) {
             const entry = getInventoryEntry(currentProperty, itemId);
             if (!entry.purchases[index]) entry.purchases[index] = { cases: 0, packQty: 0 };
             entry.purchases[index][field] = parseFloat(value) || 0;
-            renderVarianceTable();
-            saveAllDataToBrowser(false);
+            debouncedSaveVariance();
         }
 
+        const debouncedSaveVariance = debounce(() => saveAllDataToBrowser(false), 400);
+
         function resetVarianceCounts() {
-            if (!confirm(`Reset all Opening/Purchases/Closing entries for ${currentProperty}? This cannot be undone.`)) return;
-            inventoryCountDatabase[currentProperty] = {};
+            const propEntries = inventoryCountDatabase[currentProperty] || {};
+            const hasClosingData = Object.values(propEntries).some(e => (parseFloat(e?.closing?.cases) || 0) !== 0 || (parseFloat(e?.closing?.packQty) || 0) !== 0);
+
+            const transfer = hasClosingData
+                ? confirm(`Transfer your Closing Inventory counts to Opening Inventory for ${currentProperty} before resetting?\n\nClick OK to carry Closing forward into the new Opening counts (recommended when starting a new count period).\nClick Cancel to reset everything to zero instead.`)
+                : false;
+
+            if (!confirm(`Reset Purchases and Closing entries for ${currentProperty}${transfer ? ' (Opening will be carried forward from Closing)' : ''}? This cannot be undone.`)) return;
+
+            const newPropEntries = {};
+            Object.keys(propEntries).forEach(itemId => {
+                const entry = propEntries[itemId];
+                newPropEntries[itemId] = {
+                    opening: transfer ? { cases: entry.closing.cases || 0, packQty: entry.closing.packQty || 0 } : { cases: 0, packQty: 0 },
+                    closing: { cases: 0, packQty: 0 },
+                    purchases: [{ cases: 0, packQty: 0 }]
+                };
+            });
+            inventoryCountDatabase[currentProperty] = newPropEntries;
+            varianceCalcCache[currentProperty] = {};
             renderVarianceTable();
             saveAllDataToBrowser(false);
+            showToast(transfer ? 'Closing counts carried forward to Opening. Purchases and Closing reset.' : 'All counts reset for ' + currentProperty + '.', 'success');
         }
 
         function printVarianceReport() {
-            const rows = getVarianceScopeItems().sort((a, b) => b.varianceCost - a.varianceCost);
+            calculateVariance();
+            const cache = varianceCalcCache[currentProperty] || {};
+            const rows = Object.values(cache).sort((a, b) => b.varianceCost - a.varianceCost);
             const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
             const bodyRows = rows.map(r => `
                 <tr>
@@ -3747,3 +3813,4 @@ function generateMenuItemPptx(items) {
     pptx.writeFile({ fileName: `MenuItemRecipes_${Date.now()}.pptx` });
 }
 
+    
