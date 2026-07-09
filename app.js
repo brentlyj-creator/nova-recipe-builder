@@ -35,6 +35,7 @@
             renderCategoryTable();
             renderSupplierTable();
             renderMenuItemCategoryTable();
+            reconcilePrepCategories();
             renderPrepCategoryTable();
             renderPropertyMenuPicker();
             renderPropertyMenus();
@@ -489,6 +490,7 @@ function executeBulkExport() {
             supplierDatabase = supplierDatabase.map(plainText).filter(Boolean);
             menuItemCategoryDatabase = menuItemCategoryDatabase.map(plainText).filter(Boolean);
             prepCategoryDatabase = prepCategoryDatabase.map(plainText).filter(Boolean);
+            reconcilePrepCategories();
             sanitizePlainTextFields(itemDatabase, ['id','name','sku','supplier','category','status','packType','unitMeasure','recipeMeasure','priceLastUpdated']);
             sanitizePlainTextFields(prepDatabase, ['id','property','name','category','yieldUnit','shelfLife','usage','usageUnit','portionUnit']);
             sanitizePlainTextFields(menuDatabase, ['id','property','name','category','cookTime']);
@@ -534,6 +536,7 @@ function executeBulkExport() {
                 }
                 if (!raw) return false;
                 applyAppDataPayload(JSON.parse(raw));
+                reconcilePrepCategories();
                 refreshAllUI();
                 if (loadedLegacyKey) saveAllDataToBrowser(false);
                 return true;
@@ -1387,6 +1390,14 @@ function executeBulkExport() {
         }
 
         // --- PREP CATEGORIES (Global) ---
+        function reconcilePrepCategories() {
+            const usedCategories = new Set(prepDatabase.map(p => p.category).filter(Boolean));
+            usedCategories.forEach(cat => {
+                if (!prepCategoryDatabase.includes(cat)) prepCategoryDatabase.push(cat);
+            });
+            prepCategoryDatabase.sort((a, b) => a.localeCompare(b));
+        }
+
         function renderPrepCategoryTable() {
             const tbody = document.getElementById('prepCategoryTableBody');
             if (!tbody) return;
