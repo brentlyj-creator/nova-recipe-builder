@@ -106,6 +106,9 @@
         .sidebar-tool-btn.import:hover { background: #243342; }
         .sidebar-file-input { width: 100%; box-sizing: border-box; margin: 6px 0 4px 0; padding: 6px; border-radius: 4px; border: 1px solid #516273; background: #1a252f; color: #fff; font-size: 0.72rem; }
         .sidebar-tool-note { color: #b9c7d3; font-size: 0.68rem; line-height: 1.35; margin-top: 6px; }
+		.sidebar-item-tools { padding: 10px 14px 14px 14px; background-color: #1f3040; border-bottom: 1px solid #3b4c5c;}
+		.sidebar-item-tools-title { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.8px; color: #b9c7d3; margin-bottom: 7px; font-weight: 700;}
+		.sidebar-selected-file { font-size: 0.68rem; color: #dfe9f2; background: #162330; border: 1px solid #3b4c5c; border-radius: 4px; padding: 6px 7px; margin: 5px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
         .sold-input { width: 70px !important; min-width: 64px; padding: 5px 6px; text-align: center; }
         .mini-action-btn { background-color: #7f8c8d; color:white; border:none; padding:4px 8px; border-radius:3px; cursor:pointer; font-size:0.75rem; margin-left:5px; }
         .mini-action-btn:hover { background-color:#6c7a7b; }
@@ -133,7 +136,39 @@
 
         <button class="nav-btn active" onclick="openTab(event, 'menu-builder')">Menus</button>
         <button class="nav-btn" onclick="openTab(event, 'items')">Items</button>
-        
+		<div class="sidebar-item-tools">
+		    <div class="sidebar-item-tools-title">Item Price Tools</div>
+		
+		    <input 
+		        type="file" 
+		        id="priceUpdateCsvFile" 
+		        accept=".csv" 
+		        style="display:none;" 
+		        onchange="updatePriceCsvFileLabel(this)"
+		    >
+		
+		    <button 
+		        class="sidebar-tool-btn import" 
+		        type="button" 
+		        onclick="document.getElementById('priceUpdateCsvFile').click()"
+		    >
+		        Choose Price CSV
+		    </button>
+		
+		    <div id="priceUpdateCsvFileName" class="sidebar-selected-file">
+		        No CSV selected
+		    </div>
+		
+		    <button 
+		        class="sidebar-tool-btn export" 
+		        type="button" 
+		        onclick="importPriceUpdateCsv(document.getElementById('priceUpdateCsvFile').files[0])"
+		    >
+		        Update Item Prices
+		    </button>
+		</div>
+		``
+		
         <button class="nav-btn dropdown-toggle" onclick="toggleDropdown(event, 'recipeMenu')">Recipes</button>
         <div id="recipeMenu" class="sub-nav">
             <button class="nav-btn" onclick="openTab(event, 'prep')">Prep Recipes</button>
@@ -145,16 +180,7 @@
         <div class="sidebar-sync-tools">
             <div class="sidebar-sync-title">Quick Data Tools</div>
             <button class="sidebar-tool-btn" type="button" onclick="saveAllDataToBrowser(true)">Save Now</button>
-			<input type="file" id="priceUpdateCsvFile" class="sidebar-file-input" accept=".csv">
-			<button 
-			    class="sidebar-tool-btn export" 
-			    type="button" 
-			    onclick="importPriceUpdateCsv(document.getElementById('priceUpdateCsvFile').files[0])"
-			>
-			    Update Prices from CSV
-			</button>
-			
-            <button class="sidebar-tool-btn" type="button" onclick="chooseBackupFolder()" style="background:#6f42c1;">Choose Backup Folder</button>
+			<button class="sidebar-tool-btn" type="button" onclick="chooseBackupFolder()" style="background:#6f42c1;">Choose Backup Folder</button>
             <button class="sidebar-tool-btn export" type="button" onclick="exportAllDataToFile()">Backup JSON</button>
             <input type="file" id="importDataFile" class="sidebar-file-input" accept=".json">
             <button class="sidebar-tool-btn import" type="button" onclick="importAllDataFromFile(document.getElementById('importDataFile').files[0])">Import JSON</button>
