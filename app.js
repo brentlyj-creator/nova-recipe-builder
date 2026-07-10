@@ -1176,6 +1176,9 @@ function executeBulkExport() {
 			
 			let propertySales = 0;
 			let propertyCost = 0;
+
+			const summaryContainer =
+    		document.getElementById('propertyMenuSummary');
 			
             tbody.innerHTML = '';
 
@@ -1206,6 +1209,33 @@ function executeBulkExport() {
                 `;
                 tbody.appendChild(row);
             });
+
+			if (summaryContainer) {
+    summaryContainer.innerHTML = `
+        <div class="recipe-meta-card">
+            <strong>Total Menus</strong>
+            ${menus.length}
+        </div>
+
+        <div class="recipe-meta-card">
+            <strong>Total Sales</strong>
+            $${propertySales.toFixed(2)}
+        </div>
+
+        <div class="recipe-meta-card">
+            <strong>Total Theo Cost</strong>
+            $${propertyCost.toFixed(2)}
+        </div>
+
+        <div class="recipe-meta-card">
+            <strong>Property Theo FC %</strong>
+            ${propertySales > 0
+                ? ((propertyCost / propertySales) * 100).toFixed(1)
+                : '0.0'}%
+        </div>
+    `;
+}
+			
 			const propertyPct =
 			    propertySales > 0
 			        ? (propertyCost / propertySales) * 100
