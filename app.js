@@ -1109,7 +1109,7 @@ function executeBulkExport() {
             if (!recipe) return null;
 
             const price = parseFloat(recipe.targetPrice || 0);
-            const cost = calculateMenuFoodCost(recipe);
+            const cost = calculateMenuFoodCostExcludingCredits(recipe);
             const soldQty = parseFloat(line.soldQty || 0);
 
             const sales = price * soldQty;
@@ -4228,8 +4228,9 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
             if(filteredData.length === 0) { tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #777;">No menu items match your criteria.</td></tr>`; return; }
 
             filteredData.forEach(menu => {
-                const liveFoodCost = calculateMenuFoodCost(menu);
-                const liveCostPercentage = calculateMenuCostPercentage(menu);
+            const liveFoodCost = calculateMenuFoodCostExcludingCredits(menu);
+			const liveCostPercentage = calculateMenuCostPercentageExcludingCredits(menu);
+
                 let costColor = liveCostPercentage > 35 ? '#e74c3c' : (liveCostPercentage >= 30 ? '#f39c12' : '#18bc9c');
                 
                 const row = document.createElement('tr');
