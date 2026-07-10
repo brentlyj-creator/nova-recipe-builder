@@ -423,6 +423,13 @@ function renderBulkExportList() {
     }
 }
 
+function updatePriceCsvFileLabel(input) {
+    const label = document.getElementById('priceUpdateCsvFileName');
+    if (!label) return;
+
+    const file = input?.files?.[0];
+    label.textContent = file ? file.name : 'No CSV selected';
+}
 function updateBulkExportCategoryFilter() {
     const sel = document.getElementById('bulkExportCategoryFilter');
     if (!sel) return;
@@ -3226,10 +3233,11 @@ function importPriceUpdateCsv(file) {
                 }
 
                 const item = match.item;
-                const oldCost = parseFloat(item.cost || 0);
-                const newCost = row.casePrice;
-
-                if (!Number.isFinite(oldCost) || !Number.isFinite(newCost)) return;
+				const oldCost = parseFloat(item.cost || 0);
+				const defaultPriceSource = 'case';
+				const newCost = row.casePrice;
+				
+				if (!Number.isFinite(oldCost) || !Number.isFinite(newCost)) return;
 
                 const changeAmount = newCost - oldCost;
                 const changePct = oldCost > 0 ? (changeAmount / oldCost) * 100 : null;
@@ -3247,22 +3255,26 @@ function importPriceUpdateCsv(file) {
                 }
 
                 pendingPriceUpdates.push({
-                    id: item.id,
-                    itemName: item.name,
-                    sku: item.sku || '',
-                    supc: row.supc,
-                    csvDescription: row.desc,
-                    oldCost,
-                    newCost,
-                    originalCsvCost: newCost,
-                    changeAmount,
-                    changePct,
-                    isLargeSwing,
-                    matchType: match.matchType,
-                    approved: true
-                });
-            });
-
+			    id: item.id,
+			    itemName: item.name,
+			    sku: item.sku || '',
+			    supc: row.supc,
+			    csvDescription: row.desc,
+			    oldCost,
+			    newCost,
+			    originalCsvCost: newCost,
+			    originalCaseCost: row.casePrice,
+			    originalSplitCost: row.splitPrice,
+			    selectedPriceSource: defaultPriceSource,
+			    changeAmount,
+			    changePct,
+			    isLargeSwing,
+			    matchType: match.matchType,
+			    approved: true
+			});
+				
+     		});
+			
             pendingPriceUpdates.sort((a, b) => {
                 if (a.isLargeSwing !== b.isLargeSwing) return a.isLargeSwing ? -1 : 1;
                 return Math.abs(b.changePct || 0) - Math.abs(a.changePct || 0);
@@ -3416,18 +3428,43 @@ function renderPriceUpdateReviewModal() {
                 <td>${formatMoney(u.oldCost)}</td>
 
                 <td>
-                    <input 
-                        type="number" 
-                        step="0.01" 
-                        min="0" 
-                        class="price-update-new-cost" 
-                        data-index="${index}" 
-                        value="${Number(u.newCost).toFixed(2)}" 
-                        onchange="updatePendingPriceNewCost(${index}, this.value)"
-                        style="width:95px; padding:5px;"
-                    >
-                    ${Math.abs((u.newCost || 0) - (u.originalCsvCost || 0)) > 0.0001 ? `<div style="font-size:0.7rem; color:#7f8c8d;">CSV: ${formatMoney(u.originalCsvCost)}</div>` : ''}
-                </td>
+				    <select 
+				        onchange="updatePendingPriceSource(${index}, this.value)"
+				        style="width:125px; padding:5px; margin-bottom:4px;"
+				    >
+				        <option value="case" ${u.selectedPriceSource === 'case' ? 'selected' : ''}>
+				            Case $
+				        </option>
+				
+				        <option 
+				            value="split" 
+				            ${u.selectedPriceSource === 'split' ? 'selected' : ''}
+				            ${u.originalSplitCost === null || u.originalSplitCost === undefined ? 'disabled' : ''}
+				        >
+				            Broken Case $
+				        </option>
+				
+				        <option value="manual" ${u.selectedPriceSource === 'manual' ? 'selected' : ''}>
+				            Manual
+				        </option>
+				    </select>
+
+    <input 
+        type="number" 
+        step="0.01" 
+        min="0" 
+        class="price-update-new-cost" 
+        data-index="${index}" 
+        value="${Number(u.newCost).toFixed(2)}" 
+        onchange="updatePendingPriceNewCost(${index}, this.value)"
+        style="width:95px; padding:5px;"
+    >
+
+    <div style="font-size:0.7rem; color:#7f8c8d; margin-top:3px;">
+        Case: ${formatMoney(u.originalCaseCost)}
+        ${u.originalSplitCost !== null && u.originalSplitCost !== undefined ? ` | Broken: ${formatMoney(u.originalSplitCost)}` : ' | Broken: N/A'}
+    </div>
+</td>
 
                 <td style="font-weight:bold; color:${changeColor};">
                     ${formatMoney(u.changeAmount)} / ${formatPct(u.changePct)}
@@ -3446,6 +3483,34 @@ function renderPriceUpdateReviewModal() {
     document.getElementById('priceUpdateReviewModal').style.display = 'block';
 }
 
+
+function updatePendingPriceSource(index, source) {
+    const update = pendingPriceUpdates[index];
+    if (!update) return;
+
+    update.selectedPriceSource = source;
+
+    if (source === 'case') {
+        update.newCost = update.originalCaseCost;
+    } else if (source === 'split') {
+        if (update.originalSplitCost === null || update.originalSplitCost === undefined) {
+            showToast('No broken case price is available for this item.', 'warning');
+            update.selectedPriceSource = 'case';
+            update.newCost = update.originalCaseCost;
+        } else {
+            update.newCost = update.originalSplitCost;
+        }
+    } else if (source === 'manual') {
+        // Keep the current typed price.
+    }
+
+    update.changeAmount = update.newCost - update.oldCost;
+    update.changePct = update.oldCost > 0 ? (update.changeAmount / update.oldCost) * 100 : null;
+    update.isLargeSwing = update.changePct !== null && Math.abs(update.changePct) > PRICE_SWING_WARNING_PCT;
+
+    renderPriceUpdateReviewModal();
+}
+
 function updatePendingPriceNewCost(index, value) {
     const update = pendingPriceUpdates[index];
     if (!update) return;
@@ -3459,6 +3524,7 @@ function updatePendingPriceNewCost(index, value) {
     }
 
     update.newCost = newCost;
+	update.selectedPriceSource = 'manual';
     update.changeAmount = update.newCost - update.oldCost;
     update.changePct = update.oldCost > 0 ? (update.changeAmount / update.oldCost) * 100 : null;
     update.isLargeSwing = update.changePct !== null && Math.abs(update.changePct) > PRICE_SWING_WARNING_PCT;
@@ -3509,7 +3575,17 @@ function syncPriceUpdateApprovalsFromModal() {
         if (newCost === null || newCost < 0) return;
 
         update.newCost = newCost;
-        update.changeAmount = update.newCost - update.oldCost;
+
+		const matchesCase = Math.abs((update.newCost || 0) - (update.originalCaseCost || 0)) < 0.0001;
+		const matchesSplit = update.originalSplitCost !== null &&
+		    update.originalSplitCost !== undefined &&
+		    Math.abs((update.newCost || 0) - (update.originalSplitCost || 0)) < 0.0001;
+		
+		if (!matchesCase && !matchesSplit) {
+		    update.selectedPriceSource = 'manual';
+		}
+		
+		update.changeAmount = update.newCost - update.oldCost;
         update.changePct = update.oldCost > 0 ? (update.changeAmount / update.oldCost) * 100 : null;
         update.isLargeSwing = update.changePct !== null && Math.abs(update.changePct) > PRICE_SWING_WARNING_PCT;
     });
@@ -3550,15 +3626,18 @@ function applySelectedPriceUpdates() {
         if (!Array.isArray(item.priceHistory)) item.priceHistory = [];
 
         item.priceHistory.push({
-            date: stamp,
-            oldCost: update.oldCost,
-            newCost: update.newCost,
-            source: 'CSV Price Update',
-            supc: update.supc,
-            csvDescription: update.csvDescription,
-            originalCsvCost: update.originalCsvCost,
-            changePct: update.changePct
-        });
+	    date: stamp,
+	    oldCost: update.oldCost,
+	    newCost: update.newCost,
+	    source: 'CSV Price Update',
+	    priceSource: update.selectedPriceSource || 'case',
+	    supc: update.supc,
+	    csvDescription: update.csvDescription,
+	    originalCsvCost: update.originalCsvCost,
+	    originalCaseCost: update.originalCaseCost,
+	    originalSplitCost: update.originalSplitCost,
+	    changePct: update.changePct
+	});
 
         item.cost = update.newCost;
         item.priceLastUpdated = stamp;
@@ -3586,34 +3665,38 @@ function downloadPriceUpdateReviewCsv() {
     syncPriceUpdateApprovalsFromModal();
 
     const headers = [
-        'Apply',
-        'Flagged Over 10%',
-        'Item Name',
-        'Item SKU',
-        'CSV SUPC',
-        'CSV Description',
-        'Old Price',
-        'New Price',
-        'Original CSV Price',
-        'Change Amount',
-        'Change %',
-        'Match Type'
-    ];
+	    'Apply',
+	    'Flagged Over 10%',
+	    'Price Source',
+	    'Item Name',
+	    'Item SKU',
+	    'CSV SUPC',
+	    'CSV Description',
+	    'Old Price',
+	    'New Price',
+	    'Case Price',
+	    'Broken Case Price',
+	    'Change Amount',
+	    'Change %',
+	    'Match Type'
+	];
 
     const rows = pendingPriceUpdates.map(u => [
-        u.approved ? 'Yes' : 'No',
-        u.isLargeSwing ? 'Yes' : 'No',
-        u.itemName,
-        u.sku,
-        u.supc,
-        u.csvDescription,
-        u.oldCost,
-        u.newCost,
-        u.originalCsvCost,
-        u.changeAmount,
-        u.changePct === null ? '' : u.changePct.toFixed(4),
-        u.matchType
-    ]);
+	    u.approved ? 'Yes' : 'No',
+	    u.isLargeSwing ? 'Yes' : 'No',
+	    u.selectedPriceSource || 'case',
+	    u.itemName,
+	    u.sku,
+	    u.supc,
+	    u.csvDescription,
+	    u.oldCost,
+	    u.newCost,
+	    u.originalCaseCost,
+	    u.originalSplitCost ?? '',
+	    u.changeAmount,
+	    u.changePct === null ? '' : u.changePct.toFixed(4),
+	    u.matchType
+	]);
 
     const csv = [headers, ...rows]
         .map(row => row.map(value => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','))
