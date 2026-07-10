@@ -1173,6 +1173,10 @@ function executeBulkExport() {
             if (!tbody) return;
 
             const menus = getCurrentPropertyMenus();
+			
+			let propertySales = 0;
+			let propertyCost = 0;
+			
             tbody.innerHTML = '';
 
             if (menus.length === 0) {
@@ -1182,6 +1186,10 @@ function executeBulkExport() {
 
             menus.forEach(menu => {
                 const totals = calculateMenuTotals(menu);
+
+				propertySales += totals.sales;
+				propertyCost += totals.cost;
+				
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td><strong>${menu.name}</strong></td>
@@ -1198,6 +1206,27 @@ function executeBulkExport() {
                 `;
                 tbody.appendChild(row);
             });
+			const propertyPct =
+			    propertySales > 0
+			        ? (propertyCost / propertySales) * 100
+			        : 0;
+			
+			tbody.innerHTML += `
+			<tr style="background:#2c3e50; color:white; font-weight:bold;">
+			    <td>PROPERTY TOTAL</td>
+			    <td>-</td>
+			    <td>-</td>
+			    <td>$${propertySales.toFixed(2)}</td>
+			    <td>$${propertyCost.toFixed(2)}</td>
+				<td style="color:${ 
+						propertyPct > 35
+				        ? '#e74c3c'
+				        : (propertyPct >= 30 ? '#f39c12' : '#18bc9c')
+				};">
+				    ${propertyPct.toFixed(1)}%
+				</td>			    
+				<td></td>
+			</tr>`;
         }
 
         function renderSelectedPropertyMenuDetails() {
