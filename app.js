@@ -2991,7 +2991,649 @@ function executeBulkExport() {
             saveAllDataToBrowser(false);
             showToast(`Price updated for ${item.name}. Recipes and menu costs have been refreshed.`, 'success');
         }
+		// --- BULK PRICE UPDATE FROM SUPC CSV ---
+const PRICE_SWING_WARNING_PCT = 10;
+let pendingPriceUpdates = [];
+let pendingPriceUpdateSummary = null;
 
+function normalizeSku(value) {
+    return String(value ?? '')
+        .trim()
+        .replace(/\s+/g, '')
+        .toUpperCase();
+}
+
+function stripLeadingZeros(value) {
+    return normalizeSku(value).replace(/^0+/, '') || '0';
+}
+
+function parseMoney(value) {
+    if (value === null || value === undefined) return null;
+    const cleaned = String(value).replace(/[$,]/g, '').trim();
+    if (cleaned === '') return null;
+    const num = parseFloat(cleaned);
+    return Number.isFinite(num) ? num : null;
+}
+
+function formatMoney(value) {
+    const num = parseFloat(value || 0);
+    const sign = num < 0 ? '-' : '';
+    return `${sign}$${Math.abs(num).toFixed(2)}`;
+}
+
+function formatPct(value) {
+    if (value === null || value === undefined || !Number.isFinite(value)) return 'N/A';
+    const sign = value > 0 ? '+' : '';
+    return `${sign}${value.toFixed(1)}%`;
+}
+
+// Robust CSV parser that supports quoted commas and quoted line breaks.
+function parseCsvRows(text) {
+    const rows = [];
+    let row = [];
+    let cell = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const next = text[i + 1];
+
+        if (char === '"') {
+            if (inQuotes && next === '"') {
+                cell += '"';
+                i++;
+            } else {
+                inQuotes = !inQuotes;
+            }
+            continue;
+        }
+
+        if (char === ',' && !inQuotes) {
+            row.push(cell);
+            cell = '';
+            continue;
+        }
+
+        if ((char === '\n' || char === '\r') && !inQuotes) {
+            if (char === '\r' && next === '\n') i++;
+            row.push(cell);
+            rows.push(row);
+            row = [];
+            cell = '';
+            continue;
+        }
+
+        cell += char;
+    }
+
+    if (cell.length > 0 || row.length > 0) {
+        row.push(cell);
+        rows.push(row);
+    }
+
+    return rows;
+}
+
+function extractPriceRowsFromSyscoCsv(csvText) {
+    const rows = parseCsvRows(csvText);
+
+    const headerRow = rows.find(row => String(row[0] || '').trim().toUpperCase() === 'F');
+
+    if (!headerRow) {
+        throw new Error('Could not find the CSV header row. Expected a row beginning with "F".');
+    }
+
+    const headers = headerRow.map(h => String(h || '').trim());
+
+    const supcIndex = headers.findIndex(h => h.toUpperCase() === 'SUPC');
+    const casePriceIndex = headers.findIndex(h => h.toUpperCase() === 'CASE $');
+    const splitPriceIndex = headers.findIndex(h => h.toUpperCase() === 'SPLIT $');
+    const descIndex = headers.findIndex(h => h.toUpperCase() === 'DESC');
+
+    if (supcIndex === -1) {
+        throw new Error('Could not find SUPC column in the CSV.');
+    }
+
+    if (casePriceIndex === -1) {
+        throw new Error('Could not find Case $ column in the CSV.');
+    }
+
+    const productRows = rows.filter(row => String(row[0] || '').trim().toUpperCase() === 'P');
+
+    return productRows
+        .map(row => {
+            const supc = normalizeSku(row[supcIndex]);
+            const casePrice = parseMoney(row[casePriceIndex]);
+            const splitPrice = splitPriceIndex > -1 ? parseMoney(row[splitPriceIndex]) : null;
+            const desc = descIndex > -1 ? String(row[descIndex] || '').trim() : '';
+
+            return {
+                supc,
+                casePrice,
+                splitPrice,
+                desc,
+                raw: row
+            };
+        })
+        .filter(row => row.supc && row.casePrice !== null);
+}
+
+function buildItemSkuLookup() {
+    const exact = new Map();
+    const stripped = new Map();
+
+    itemDatabase.forEach(item => {
+        const sku = normalizeSku(item.sku);
+        if (!sku) return;
+
+        if (!exact.has(sku)) exact.set(sku, []);
+        exact.get(sku).push(item);
+
+        const strippedSku = stripLeadingZeros(sku);
+        if (!stripped.has(strippedSku)) stripped.set(strippedSku, []);
+        stripped.get(strippedSku).push(item);
+    });
+
+    return { exact, stripped };
+}
+
+function findItemBySupc(supc, lookup) {
+    const normalized = normalizeSku(supc);
+
+    const exactMatches = lookup.exact.get(normalized) || [];
+
+    if (exactMatches.length === 1) {
+        return {
+            item: exactMatches[0],
+            matchType: 'Exact SUPC match'
+        };
+    }
+
+    if (exactMatches.length > 1) {
+        return {
+            item: null,
+            matchType: 'Duplicate SKU in Item Master',
+            duplicateItems: exactMatches
+        };
+    }
+
+    const strippedMatches = lookup.stripped.get(stripLeadingZeros(normalized)) || [];
+
+    if (strippedMatches.length === 1) {
+        return {
+            item: strippedMatches[0],
+            matchType: 'Matched after ignoring leading zeroes'
+        };
+    }
+
+    if (strippedMatches.length > 1) {
+        return {
+            item: null,
+            matchType: 'Duplicate SKU after ignoring leading zeroes',
+            duplicateItems: strippedMatches
+        };
+    }
+
+    return {
+        item: null,
+        matchType: 'No match'
+    };
+}
+
+function importPriceUpdateCsv(file) {
+    if (!file) {
+        showToast('Please choose a CSV file first.', 'warning');
+        return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+        try {
+            const csvText = e.target.result;
+            const csvRows = extractPriceRowsFromSyscoCsv(csvText);
+            const lookup = buildItemSkuLookup();
+
+            const seenSupc = new Set();
+            const duplicateSupcs = new Set();
+
+            csvRows.forEach(row => {
+                if (seenSupc.has(row.supc)) duplicateSupcs.add(row.supc);
+                seenSupc.add(row.supc);
+            });
+
+            pendingPriceUpdates = [];
+
+            const unmatched = [];
+            const duplicateItemMatches = [];
+            const unchanged = [];
+
+            csvRows.forEach(row => {
+                const match = findItemBySupc(row.supc, lookup);
+
+                if (!match.item) {
+                    if (match.duplicateItems && match.duplicateItems.length > 1) {
+                        duplicateItemMatches.push({
+                            supc: row.supc,
+                            desc: row.desc,
+                            reason: match.matchType,
+                            duplicateItems: match.duplicateItems.map(i => i.name)
+                        });
+                    } else {
+                        unmatched.push(row);
+                    }
+                    return;
+                }
+
+                const item = match.item;
+                const oldCost = parseFloat(item.cost || 0);
+                const newCost = row.casePrice;
+
+                if (!Number.isFinite(oldCost) || !Number.isFinite(newCost)) return;
+
+                const changeAmount = newCost - oldCost;
+                const changePct = oldCost > 0 ? (changeAmount / oldCost) * 100 : null;
+                const isLargeSwing = changePct !== null && Math.abs(changePct) > PRICE_SWING_WARNING_PCT;
+
+                if (Math.abs(changeAmount) < 0.0001) {
+                    unchanged.push({
+                        item,
+                        supc: row.supc,
+                        desc: row.desc,
+                        oldCost,
+                        newCost
+                    });
+                    return;
+                }
+
+                pendingPriceUpdates.push({
+                    id: item.id,
+                    itemName: item.name,
+                    sku: item.sku || '',
+                    supc: row.supc,
+                    csvDescription: row.desc,
+                    oldCost,
+                    newCost,
+                    originalCsvCost: newCost,
+                    changeAmount,
+                    changePct,
+                    isLargeSwing,
+                    matchType: match.matchType,
+                    approved: true
+                });
+            });
+
+            pendingPriceUpdates.sort((a, b) => {
+                if (a.isLargeSwing !== b.isLargeSwing) return a.isLargeSwing ? -1 : 1;
+                return Math.abs(b.changePct || 0) - Math.abs(a.changePct || 0);
+            });
+
+            pendingPriceUpdateSummary = {
+                totalCsvRows: csvRows.length,
+                matchedUpdates: pendingPriceUpdates.length,
+                unmatchedCount: unmatched.length,
+                duplicateItemMatchCount: duplicateItemMatches.length,
+                unchangedCount: unchanged.length,
+                duplicateSupcCount: duplicateSupcs.size,
+                unmatched,
+                duplicateItemMatches,
+                unchanged
+            };
+
+            if (pendingPriceUpdates.length === 0) {
+                showToast('CSV processed, but no price changes were found to review.', 'warning');
+                console.log('Price update summary:', pendingPriceUpdateSummary);
+                return;
+            }
+
+            renderPriceUpdateReviewModal();
+
+        } catch (err) {
+            console.error(err);
+            alert(`Price update failed: ${err.message}`);
+        }
+    };
+
+    reader.readAsText(file);
+}
+
+function ensurePriceUpdateReviewModal() {
+    if (document.getElementById('priceUpdateReviewModal')) return;
+
+    const modal = document.createElement('div');
+    modal.id = 'priceUpdateReviewModal';
+    modal.className = 'modal';
+
+    modal.innerHTML = `
+        <div class="modal-content" style="width: 92%; max-width: 1150px; margin: 4% auto;">
+            <div class="modal-header">
+                <h2>Review Price Updates</h2>
+                <span class="close" onclick="closeModal('priceUpdateReviewModal')">&times;</span>
+            </div>
+
+            <div id="priceUpdateSummaryBox" style="margin-bottom:15px;"></div>
+
+            <div style="display:flex; gap:10px; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap;">
+                <label style="display:flex; align-items:center; gap:8px; font-weight:bold; cursor:pointer;">
+                    <input type="checkbox" id="priceUpdateSelectAll" onchange="toggleAllPriceUpdates(this.checked)" style="width:auto;" checked>
+                    Select / deselect all updates
+                </label>
+
+                <div style="display:flex; gap:10px;">
+                    <button type="button" class="action-btn" onclick="downloadPriceUpdateReviewCsv()" style="background-color:#34495e;">
+                        Download Review CSV
+                    </button>
+
+                    <button type="button" class="btn-submit" onclick="applySelectedPriceUpdates()" style="width:auto; padding:8px 16px;">
+                        Apply Selected Updates
+                    </button>
+                </div>
+            </div>
+
+            <div style="max-height:55vh; overflow:auto; border:1px solid var(--border-color); border-radius:6px;">
+                <table style="margin-bottom:0;">
+                    <thead>
+                        <tr>
+                            <th>Apply</th>
+                            <th>Flag</th>
+                            <th>Item</th>
+                            <th>SUPC</th>
+                            <th>CSV Description</th>
+                            <th>Old Price</th>
+                            <th>New Price</th>
+                            <th>Change</th>
+                            <th>Match</th>
+                        </tr>
+                    </thead>
+                    <tbody id="priceUpdateReviewBody"></tbody>
+                </table>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+}
+
+function renderPriceUpdateReviewModal() {
+    ensurePriceUpdateReviewModal();
+
+    const summary = pendingPriceUpdateSummary || {};
+    const highSwingCount = pendingPriceUpdates.filter(u => u.isLargeSwing).length;
+
+    const summaryBox = document.getElementById('priceUpdateSummaryBox');
+
+    summaryBox.innerHTML = `
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:10px;">
+            <div class="recipe-meta-card"><strong>CSV Rows Read</strong>${summary.totalCsvRows || 0}</div>
+            <div class="recipe-meta-card"><strong>Price Changes</strong>${summary.matchedUpdates || 0}</div>
+            <div class="recipe-meta-card"><strong>Over 10% Swing</strong><span style="color:${highSwingCount ? '#e74c3c' : '#18bc9c'}; font-weight:bold;">${highSwingCount}</span></div>
+            <div class="recipe-meta-card"><strong>Unchanged</strong>${summary.unchangedCount || 0}</div>
+            <div class="recipe-meta-card"><strong>No Match</strong>${summary.unmatchedCount || 0}</div>
+            <div class="recipe-meta-card"><strong>Duplicate Match Issues</strong>${summary.duplicateItemMatchCount || 0}</div>
+        </div>
+
+        ${highSwingCount ? `<p style="color:#e74c3c; font-weight:bold; margin-bottom:0;">⚠️ Items over ${PRICE_SWING_WARNING_PCT}% are highlighted. Review them carefully, adjust the new price if needed, or uncheck them to ignore this time.</p>` : ''}
+    `;
+
+    const tbody = document.getElementById('priceUpdateReviewBody');
+
+    tbody.innerHTML = pendingPriceUpdates.map((u, index) => {
+        const rowColor = u.isLargeSwing ? '#fff3cd' : '#ffffff';
+        const flagText = u.isLargeSwing ? '⚠️ >10%' : 'OK';
+        const flagColor = u.isLargeSwing ? '#e74c3c' : '#18bc9c';
+        const changeColor = u.changeAmount >= 0 ? '#e74c3c' : '#18bc9c';
+
+        return `
+            <tr style="background:${rowColor};">
+                <td>
+                    <input 
+                        type="checkbox" 
+                        class="price-update-cb" 
+                        data-index="${index}" 
+                        ${u.approved ? 'checked' : ''} 
+                        style="width:auto;"
+                        onchange="syncPriceUpdateApprovalsFromModal()"
+                    >
+
+                    <button 
+                        type="button" 
+                        class="mini-action-btn" 
+                        onclick="ignorePendingPriceUpdate(${index})"
+                        style="margin-left:6px;"
+                    >
+                        Ignore
+                    </button>
+                </td>
+
+                <td style="font-weight:bold; color:${flagColor};">${flagText}</td>
+
+                <td><strong>${escapeHtml(u.itemName)}</strong></td>
+
+                <td>${escapeHtml(u.supc)}</td>
+
+                <td>${escapeHtml(u.csvDescription || '')}</td>
+
+                <td>${formatMoney(u.oldCost)}</td>
+
+                <td>
+                    <input 
+                        type="number" 
+                        step="0.01" 
+                        min="0" 
+                        class="price-update-new-cost" 
+                        data-index="${index}" 
+                        value="${Number(u.newCost).toFixed(2)}" 
+                        onchange="updatePendingPriceNewCost(${index}, this.value)"
+                        style="width:95px; padding:5px;"
+                    >
+                    ${Math.abs((u.newCost || 0) - (u.originalCsvCost || 0)) > 0.0001 ? `<div style="font-size:0.7rem; color:#7f8c8d;">CSV: ${formatMoney(u.originalCsvCost)}</div>` : ''}
+                </td>
+
+                <td style="font-weight:bold; color:${changeColor};">
+                    ${formatMoney(u.changeAmount)} / ${formatPct(u.changePct)}
+                </td>
+
+                <td>${escapeHtml(u.matchType)}</td>
+            </tr>
+        `;
+    }).join('');
+
+    const selectAll = document.getElementById('priceUpdateSelectAll');
+    if (selectAll) {
+        selectAll.checked = pendingPriceUpdates.every(u => u.approved);
+    }
+
+    document.getElementById('priceUpdateReviewModal').style.display = 'block';
+}
+
+function updatePendingPriceNewCost(index, value) {
+    const update = pendingPriceUpdates[index];
+    if (!update) return;
+
+    const newCost = parseMoney(value);
+
+    if (newCost === null || newCost < 0) {
+        showToast('Please enter a valid price.', 'warning');
+        renderPriceUpdateReviewModal();
+        return;
+    }
+
+    update.newCost = newCost;
+    update.changeAmount = update.newCost - update.oldCost;
+    update.changePct = update.oldCost > 0 ? (update.changeAmount / update.oldCost) * 100 : null;
+    update.isLargeSwing = update.changePct !== null && Math.abs(update.changePct) > PRICE_SWING_WARNING_PCT;
+
+    renderPriceUpdateReviewModal();
+}
+
+function ignorePendingPriceUpdate(index) {
+    const update = pendingPriceUpdates[index];
+    if (!update) return;
+
+    update.approved = false;
+
+    const cb = document.querySelector(`.price-update-cb[data-index="${index}"]`);
+    if (cb) cb.checked = false;
+
+    const selectAll = document.getElementById('priceUpdateSelectAll');
+    if (selectAll) selectAll.checked = pendingPriceUpdates.every(u => u.approved);
+}
+
+function toggleAllPriceUpdates(checked) {
+    pendingPriceUpdates.forEach(u => {
+        u.approved = checked;
+    });
+
+    document.querySelectorAll('.price-update-cb').forEach(cb => {
+        cb.checked = checked;
+    });
+}
+
+function syncPriceUpdateApprovalsFromModal() {
+    document.querySelectorAll('.price-update-cb').forEach(cb => {
+        const index = parseInt(cb.dataset.index, 10);
+
+        if (pendingPriceUpdates[index]) {
+            pendingPriceUpdates[index].approved = cb.checked;
+        }
+    });
+
+    document.querySelectorAll('.price-update-new-cost').forEach(input => {
+        const index = parseInt(input.dataset.index, 10);
+        const update = pendingPriceUpdates[index];
+
+        if (!update) return;
+
+        const newCost = parseMoney(input.value);
+
+        if (newCost === null || newCost < 0) return;
+
+        update.newCost = newCost;
+        update.changeAmount = update.newCost - update.oldCost;
+        update.changePct = update.oldCost > 0 ? (update.changeAmount / update.oldCost) * 100 : null;
+        update.isLargeSwing = update.changePct !== null && Math.abs(update.changePct) > PRICE_SWING_WARNING_PCT;
+    });
+
+    const selectAll = document.getElementById('priceUpdateSelectAll');
+    if (selectAll) {
+        selectAll.checked = pendingPriceUpdates.every(u => u.approved);
+    }
+}
+
+function applySelectedPriceUpdates() {
+    syncPriceUpdateApprovalsFromModal();
+
+    const selected = pendingPriceUpdates.filter(u => u.approved);
+
+    if (selected.length === 0) {
+        showToast('No price updates selected.', 'warning');
+        return;
+    }
+
+    const flaggedSelected = selected.filter(u => u.isLargeSwing).length;
+
+    let confirmMessage = `Apply ${selected.length} selected price update(s)?`;
+
+    if (flaggedSelected > 0) {
+        confirmMessage += `\n\nWarning: ${flaggedSelected} selected item(s) have more than a ${PRICE_SWING_WARNING_PCT}% price swing.`;
+    }
+
+    if (!confirm(confirmMessage)) return;
+
+    const stamp = new Date().toISOString();
+    let appliedCount = 0;
+
+    selected.forEach(update => {
+        const item = itemDatabase.find(i => i.id === update.id);
+        if (!item) return;
+
+        if (!Array.isArray(item.priceHistory)) item.priceHistory = [];
+
+        item.priceHistory.push({
+            date: stamp,
+            oldCost: update.oldCost,
+            newCost: update.newCost,
+            source: 'CSV Price Update',
+            supc: update.supc,
+            csvDescription: update.csvDescription,
+            originalCsvCost: update.originalCsvCost,
+            changePct: update.changePct
+        });
+
+        item.cost = update.newCost;
+        item.priceLastUpdated = stamp;
+
+        appliedCount++;
+    });
+
+    renderItemTable();
+    renderPrepTable(document.getElementById('searchPrepInput')?.value?.toLowerCase() || '');
+    renderMenuTable();
+    renderPropertyMenus();
+    renderSelectedPropertyMenuDetails();
+    renderVarianceTable();
+    saveAllDataToBrowser(false);
+
+    closeModal('priceUpdateReviewModal');
+
+    showToast(`${appliedCount} price update(s) applied successfully.`, 'success');
+
+    pendingPriceUpdates = [];
+    pendingPriceUpdateSummary = null;
+}
+
+function downloadPriceUpdateReviewCsv() {
+    syncPriceUpdateApprovalsFromModal();
+
+    const headers = [
+        'Apply',
+        'Flagged Over 10%',
+        'Item Name',
+        'Item SKU',
+        'CSV SUPC',
+        'CSV Description',
+        'Old Price',
+        'New Price',
+        'Original CSV Price',
+        'Change Amount',
+        'Change %',
+        'Match Type'
+    ];
+
+    const rows = pendingPriceUpdates.map(u => [
+        u.approved ? 'Yes' : 'No',
+        u.isLargeSwing ? 'Yes' : 'No',
+        u.itemName,
+        u.sku,
+        u.supc,
+        u.csvDescription,
+        u.oldCost,
+        u.newCost,
+        u.originalCsvCost,
+        u.changeAmount,
+        u.changePct === null ? '' : u.changePct.toFixed(4),
+        u.matchType
+    ]);
+
+    const csv = [headers, ...rows]
+        .map(row => row.map(value => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','))
+        .join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+
+    const stamp = new Date().toISOString().slice(0, 10);
+
+    a.href = url;
+    a.download = `price-update-review-${stamp}.csv`;
+
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    URL.revokeObjectURL(url);
+}
         function saveItemFromModal() {
             const id = document.getElementById('editItemModalId').value;
             if (!id) return;
@@ -3584,8 +4226,10 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
             renderModalTable(); 
         }
 
-        function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
-        
+		function closeModal(modalId) {
+		    const modal = document.getElementById(modalId);
+		    if (modal) modal.style.display = 'none';
+}        
         window.onclick = function(event) { 
             if (event.target == document.getElementById('ingredientModal')) closeModal('ingredientModal'); 
             if (event.target == document.getElementById('duplicateModal')) closeModal('duplicateModal'); 
