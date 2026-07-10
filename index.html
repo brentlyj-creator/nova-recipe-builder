@@ -145,6 +145,15 @@
         <div class="sidebar-sync-tools">
             <div class="sidebar-sync-title">Quick Data Tools</div>
             <button class="sidebar-tool-btn" type="button" onclick="saveAllDataToBrowser(true)">Save Now</button>
+			<input type="file" id="priceUpdateCsvFile" class="sidebar-file-input" accept=".csv">
+			<button 
+			    class="sidebar-tool-btn export" 
+			    type="button" 
+			    onclick="importPriceUpdateCsv(document.getElementById('priceUpdateCsvFile').files[0])"
+			>
+			    Update Prices from CSV
+			</button>
+			
             <button class="sidebar-tool-btn" type="button" onclick="chooseBackupFolder()" style="background:#6f42c1;">Choose Backup Folder</button>
             <button class="sidebar-tool-btn export" type="button" onclick="exportAllDataToFile()">Backup JSON</button>
             <input type="file" id="importDataFile" class="sidebar-file-input" accept=".json">
