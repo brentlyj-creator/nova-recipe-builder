@@ -428,6 +428,10 @@
                             <div style="display:flex; gap:8px; align-items:center;">
                                 <input type="number" step="0.01" id="invoiceCost" placeholder="e.g., 145.00" required style="flex:1;">
                                 <button type="button" id="updatePriceBtn" class="action-btn" onclick="updateItemPriceFromEdit()" style="display:none; white-space:nowrap; padding:8px 12px; margin-right:0; background-color:var(--info);">Update Price</button>
+                                <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:0.82rem; white-space:nowrap; margin:0;">
+                                    <input type="checkbox" id="itemExcludeFromVariance" style="width:auto;">
+                                    Exclude from Variance
+                                </label>
                             </div>
                             <input type="hidden" id="itemPriceLastUpdated" value="">
                             <div id="priceLastUpdatedDisplay" style="font-size:0.78rem; color:#7f8c8d; margin-top:5px;">No price update recorded yet.</div>
@@ -460,7 +464,7 @@
                         Fill in Pack Type, Units per Pack, Size per Unit, and Unit Measure to see a live preview here.
                     </div>
 
-                    <div class="grid-3">
+                    <div class="grid-4">
                         <div class="form-group">
                             <label>Received Unit Measure</label>
                             <select id="unitMeasure" required>
@@ -487,17 +491,15 @@
                                 <option value="" disabled selected>Select Received Measure first...</option>
                             </select>
                         </div>
-                        <div class="grid-2" style="margin-bottom:15px;">
-    <div class="form-group">
-        <label>Yield %</label>
-        <input type="number" id="itemYield" step="0.1" min="1" max="100" value="100" placeholder="e.g., 85">
-        <span style="font-size:0.8rem; color:#888;">(after cleaning/cooking)</span>
-    </div>
-    <div class="form-group btn-group" style="align-self:end;">
-        <button type="submit" id="submitBtn" class="btn-submit">Save New Item</button>
-        <button type="button" id="cancelBtn" class="btn-cancel" onclick="cancelEdit()">Cancel</button>
-    </div>
-</div>
+                        <div class="form-group">
+                            <label>Yield %</label>
+                            <input type="number" id="itemYield" step="0.1" min="1" max="100" value="100" placeholder="e.g., 85">
+                            <span style="font-size:0.8rem; color:#888;">(after cleaning/cooking)</span>
+                        </div>
+                        <div class="form-group btn-group" style="align-self:end;">
+                            <button type="submit" id="submitBtn" class="btn-submit">Save New Item</button>
+                            <button type="button" id="cancelBtn" class="btn-cancel" onclick="cancelEdit()">Cancel</button>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -931,6 +933,10 @@
                     <div style="display:flex; gap:8px; align-items:center;">
                         <input type="number" step="0.01" id="editModalInvoiceCost" required style="flex:1;">
                         <button type="button" class="action-btn" onclick="updateItemPriceFromModal()" style="white-space:nowrap; padding:8px 12px; margin-right:0; background-color:var(--info);">Update Price</button>
+                        <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:0.82rem; white-space:nowrap; margin:0;">
+                            <input type="checkbox" id="editModalItemExcludeFromVariance" style="width:auto;">
+                            Exclude from Variance
+                        </label>
                     </div>
                     <input type="hidden" id="editModalItemPriceLastUpdated" value="">
                     <div id="editModalPriceLastUpdatedDisplay" style="font-size:0.78rem; color:#7f8c8d; margin-top:5px;">No price update recorded yet.</div>
