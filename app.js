@@ -3,6 +3,8 @@
         let propertyDatabase = ["Hotel Alpha", "Hotel Beta", "Hotel Gamma"];
         let categoryDatabase = ["Food", "Liquor", "Wine", "Beer"];
         let supplierDatabase = ["Sysco", "GFS", "Local Market"];
+        let packTypeDatabase = ['Case', 'Bag', 'Bottle', 'Jug', 'Each', 'Keg', 'Container']; // Global received-as pack types
+        let unitDescriptorDatabase = ['Unit', 'Bag', 'Box', 'Sleeve', 'Tray', 'Portion']; // Global unit-per-pack descriptors
         
         let itemDatabase = []; // Global
         let prepDatabase = []; // Localized (has .property key)
@@ -34,6 +36,8 @@
             updateUIPropertyNames();
             renderCategoryTable();
             renderSupplierTable();
+            renderPackTypeTable();
+            renderUnitDescriptorTable();
             renderMenuItemCategoryTable();
             reconcilePrepCategories();
             renderPrepCategoryTable();
@@ -463,6 +467,8 @@ function executeBulkExport() {
                 propertyDatabase: Array.isArray(propertyDatabase) ? [...propertyDatabase] : [],
                 categoryDatabase: Array.isArray(categoryDatabase) ? [...categoryDatabase] : [],
                 supplierDatabase: Array.isArray(supplierDatabase) ? [...supplierDatabase] : [],
+                packTypeDatabase: Array.isArray(packTypeDatabase) ? [...packTypeDatabase] : [],
+                unitDescriptorDatabase: Array.isArray(unitDescriptorDatabase) ? [...unitDescriptorDatabase] : [],
                 menuItemCategoryDatabase: Array.isArray(menuItemCategoryDatabase) ? [...menuItemCategoryDatabase] : [],
                 prepCategoryDatabase: Array.isArray(prepCategoryDatabase) ? [...prepCategoryDatabase] : [],
                 inventoryCountDatabase: (inventoryCountDatabase && typeof inventoryCountDatabase === 'object') ? inventoryCountDatabase : {},
@@ -478,6 +484,8 @@ function executeBulkExport() {
             propertyDatabase = Array.isArray(data.propertyDatabase) ? data.propertyDatabase : [];
             categoryDatabase = Array.isArray(data.categoryDatabase) ? data.categoryDatabase : [];
             supplierDatabase = Array.isArray(data.supplierDatabase) ? data.supplierDatabase : ['Sysco', 'GFS', 'Local Market'];
+            packTypeDatabase = Array.isArray(data.packTypeDatabase) ? data.packTypeDatabase : ['Case', 'Bag', 'Bottle', 'Jug', 'Each', 'Keg', 'Container'];
+            unitDescriptorDatabase = Array.isArray(data.unitDescriptorDatabase) ? data.unitDescriptorDatabase : ['Unit', 'Bag', 'Box', 'Sleeve', 'Tray', 'Portion'];
             menuItemCategoryDatabase = Array.isArray(data.menuItemCategoryDatabase) ? data.menuItemCategoryDatabase : ['Appies', 'Salads', 'Entrees', 'LWB'];
             prepCategoryDatabase = Array.isArray(data.prepCategoryDatabase) ? data.prepCategoryDatabase : [];
             inventoryCountDatabase = (data.inventoryCountDatabase && typeof data.inventoryCountDatabase === 'object') ? data.inventoryCountDatabase : {};
@@ -488,10 +496,14 @@ function executeBulkExport() {
             propertyDatabase = propertyDatabase.map(plainText).filter(Boolean);
             categoryDatabase = categoryDatabase.map(plainText).filter(Boolean);
             supplierDatabase = supplierDatabase.map(plainText).filter(Boolean);
+            packTypeDatabase = packTypeDatabase.map(plainText).filter(Boolean);
+            unitDescriptorDatabase = unitDescriptorDatabase.map(plainText).filter(Boolean);
+            if (!unitDescriptorDatabase.includes('Unit')) unitDescriptorDatabase.unshift('Unit');
             menuItemCategoryDatabase = menuItemCategoryDatabase.map(plainText).filter(Boolean);
             prepCategoryDatabase = prepCategoryDatabase.map(plainText).filter(Boolean);
             reconcilePrepCategories();
-            sanitizePlainTextFields(itemDatabase, ['id','name','sku','supplier','category','status','packType','unitMeasure','recipeMeasure','priceLastUpdated']);
+            sanitizePlainTextFields(itemDatabase, ['id','name','sku','supplier','category','status','packType','unitDescriptor','unitMeasure','recipeMeasure','priceLastUpdated']);
+            itemDatabase.forEach(item => { if (!item.unitDescriptor) item.unitDescriptor = 'Unit'; });
             sanitizePlainTextFields(prepDatabase, ['id','property','name','category','yieldUnit','shelfLife','usage','usageUnit','portionUnit']);
             sanitizePlainTextFields(menuDatabase, ['id','property','name','category','cookTime']);
             sanitizePlainTextFields(propertyMenuDatabase, ['id','property','name']);
@@ -1687,6 +1699,197 @@ function executeBulkExport() {
             }
         }
 
+        // --- PACK TYPE (Received As) GLOBAL LIST ---
+        function renderPackTypeTable() {
+            const tbody = document.getElementById('packTypeTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            packTypeDatabase.forEach(pt => {
+                const inUse = itemDatabase.some(item => item.packType === pt);
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="padding: 8px 0;"><strong>${escapeHtml(pt)}</strong>${inUse ? ' <span style="font-size:0.72rem;color:#7f8c8d;">(in use)</span>' : ''}</td>
+                    <td style="text-align: right; padding: 8px 0;">
+                        <button class="action-btn" onclick="editPackType('${escapeHtml(pt)}')">Edit</button>
+                        <button class="action-btn" style="background-color: var(--cancel);" onclick="deletePackType('${escapeHtml(pt)}')">X</button>
+                    </td>`;
+                tbody.appendChild(tr);
+            });
+            updatePackTypeDropdown();
+        }
+
+        function addPackType() {
+            const val = plainText(document.getElementById('newPackTypeName').value);
+            if (val && !packTypeDatabase.includes(val)) {
+                packTypeDatabase.push(val);
+                packTypeDatabase.sort((a, b) => a.localeCompare(b));
+                document.getElementById('newPackTypeName').value = '';
+                renderPackTypeTable();
+                renderItemTable();
+                saveAllDataToBrowser(false);
+            } else if (packTypeDatabase.includes(val)) {
+                alert('That pack type already exists.');
+            }
+        }
+
+        function editPackType(oldVal) {
+            const newVal = prompt('Enter new pack type name:', oldVal);
+            if (newVal && newVal.trim() !== '' && newVal !== oldVal) {
+                const trimmed = newVal.trim();
+                if (packTypeDatabase.includes(trimmed)) {
+                    alert('A pack type with this name already exists.');
+                    return;
+                }
+                const idx = packTypeDatabase.indexOf(oldVal);
+                if (idx > -1) {
+                    packTypeDatabase[idx] = trimmed;
+                    packTypeDatabase.sort((a, b) => a.localeCompare(b));
+                    itemDatabase.forEach(item => { if (item.packType === oldVal) item.packType = trimmed; });
+                    renderPackTypeTable();
+                    renderItemTable();
+                    saveAllDataToBrowser(false);
+                }
+            }
+        }
+
+        function deletePackType(pt) {
+            const inUse = itemDatabase.filter(item => item.packType === pt);
+            if (inUse.length > 0) {
+                const names = inUse.map(i => `• ${i.name}`).join('\n');
+                alert(`❌ Cannot delete "${pt}" — it is currently used by the following items:\n\n${names}\n\nChange those items to a different pack type first.`);
+                return;
+            }
+            if (confirm(`Are you sure you want to delete the pack type '${pt}'?`)) {
+                packTypeDatabase = packTypeDatabase.filter(p => p !== pt);
+                renderPackTypeTable();
+                renderItemTable();
+                saveAllDataToBrowser(false);
+            }
+        }
+
+        function updatePackTypeDropdown() {
+            const sel = document.getElementById('packType');
+            if (!sel) return;
+            const current = sel.value;
+            sel.innerHTML = '<option value="" disabled>Select Pack Type...</option>';
+            packTypeDatabase.forEach(pt => {
+                const opt = document.createElement('option');
+                opt.value = pt;
+                opt.textContent = pt;
+                sel.appendChild(opt);
+            });
+            if (packTypeDatabase.includes(current)) sel.value = current;
+            updateItemFormPreview();
+        }
+
+        // --- UNIT DESCRIPTOR (per-Unit-in-Pack label) GLOBAL LIST ---
+        function renderUnitDescriptorTable() {
+            const tbody = document.getElementById('unitDescriptorTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            unitDescriptorDatabase.forEach(ud => {
+                const inUse = itemDatabase.some(item => item.unitDescriptor === ud);
+                const isDefault = ud === 'Unit';
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="padding: 8px 0;"><strong>${escapeHtml(ud)}</strong>${inUse ? ' <span style="font-size:0.72rem;color:#7f8c8d;">(in use)</span>' : ''}${isDefault ? ' <span style="font-size:0.72rem;color:#7f8c8d;">(default)</span>' : ''}</td>
+                    <td style="text-align: right; padding: 8px 0;">
+                        <button class="action-btn" onclick="editUnitDescriptor('${escapeHtml(ud)}')" ${isDefault ? 'disabled title="The default label cannot be renamed"' : ''}>Edit</button>
+                        <button class="action-btn" style="background-color: var(--cancel);" onclick="deleteUnitDescriptor('${escapeHtml(ud)}')" ${isDefault ? 'disabled title="The default label cannot be deleted"' : ''}>X</button>
+                    </td>`;
+                tbody.appendChild(tr);
+            });
+            updateUnitDescriptorDropdown();
+        }
+
+        function addUnitDescriptor() {
+            const val = plainText(document.getElementById('newUnitDescriptorName').value);
+            if (val && !unitDescriptorDatabase.includes(val)) {
+                unitDescriptorDatabase.push(val);
+                unitDescriptorDatabase.sort((a, b) => a.localeCompare(b));
+                document.getElementById('newUnitDescriptorName').value = '';
+                renderUnitDescriptorTable();
+                renderItemTable();
+                renderVarianceTable();
+                saveAllDataToBrowser(false);
+            } else if (unitDescriptorDatabase.includes(val)) {
+                alert('That unit descriptor already exists.');
+            }
+        }
+
+        function editUnitDescriptor(oldVal) {
+            if (oldVal === 'Unit') return;
+            const newVal = prompt('Enter new unit descriptor name:', oldVal);
+            if (newVal && newVal.trim() !== '' && newVal !== oldVal) {
+                const trimmed = newVal.trim();
+                if (unitDescriptorDatabase.includes(trimmed)) {
+                    alert('A unit descriptor with this name already exists.');
+                    return;
+                }
+                const idx = unitDescriptorDatabase.indexOf(oldVal);
+                if (idx > -1) {
+                    unitDescriptorDatabase[idx] = trimmed;
+                    unitDescriptorDatabase.sort((a, b) => a.localeCompare(b));
+                    itemDatabase.forEach(item => { if (item.unitDescriptor === oldVal) item.unitDescriptor = trimmed; });
+                    renderUnitDescriptorTable();
+                    renderItemTable();
+                    renderVarianceTable();
+                    saveAllDataToBrowser(false);
+                }
+            }
+        }
+
+        function deleteUnitDescriptor(ud) {
+            if (ud === 'Unit') return;
+            const inUse = itemDatabase.filter(item => item.unitDescriptor === ud);
+            if (inUse.length > 0) {
+                const names = inUse.map(i => `• ${i.name}`).join('\n');
+                alert(`❌ Cannot delete "${ud}" — it is currently used by the following items:\n\n${names}\n\nChange those items to a different unit descriptor first.`);
+                return;
+            }
+            if (confirm(`Are you sure you want to delete the unit descriptor '${ud}'?`)) {
+                unitDescriptorDatabase = unitDescriptorDatabase.filter(u => u !== ud);
+                renderUnitDescriptorTable();
+                renderItemTable();
+                renderVarianceTable();
+                saveAllDataToBrowser(false);
+            }
+        }
+
+        function updateUnitDescriptorDropdown() {
+            const sel = document.getElementById('unitDescriptor');
+            if (!sel) return;
+            const current = sel.value;
+            sel.innerHTML = '';
+            unitDescriptorDatabase.forEach(ud => {
+                const opt = document.createElement('option');
+                opt.value = ud;
+                opt.textContent = ud;
+                sel.appendChild(opt);
+            });
+            if (unitDescriptorDatabase.includes(current)) sel.value = current;
+            else sel.value = 'Unit';
+            updateItemFormPreview();
+        }
+
+        // --- LIVE PREVIEW TEXT FOR ITEM FORM ---
+        function updateItemFormPreview() {
+            const previewEl = document.getElementById('itemFormPreview');
+            if (!previewEl) return;
+            const name = plainText(document.getElementById('itemName')?.value) || 'This item';
+            const packType = document.getElementById('packType')?.value || '';
+            const units = document.getElementById('unitsPerPack')?.value || '';
+            const unitSize = document.getElementById('unitSize')?.value || '';
+            const unitMeasure = document.getElementById('unitMeasure')?.value || '';
+            const descriptor = document.getElementById('unitDescriptor')?.value || 'Unit';
+            if (!packType || !units || !unitSize || !unitMeasure) {
+                previewEl.textContent = 'Fill in Pack Type, Units per Pack, Size per Unit, and Unit Measure to see a live preview here.';
+                return;
+            }
+            const descriptorPlural = units && parseFloat(units) === 1 ? descriptor : `${descriptor}${descriptor.endsWith('s') ? '' : 's'}`;
+            previewEl.textContent = `${name} ${/s$/i.test(name) ? 'are' : 'is'} received in a ${packType}. Units per pack is ${units} ${descriptor}${parseFloat(units) === 1 ? '' : 's'}, each ${descriptor} is ${unitSize} ${unitMeasure}.`;
+        }
+
         // PROPERTIES
         function updatePropertyDropdowns() {
             const selects = ['globalPropertySelector', 'duplicateTargetSelector', 'cloneSource'];
@@ -1971,8 +2174,9 @@ function executeBulkExport() {
 
         unitMeasureSelect.addEventListener('change', function() { populateRecipeOptions(this.value); });
 
-        function populateRecipeOptions(selectedMeasure, presetValue = null) {
-            recipeMeasureSelect.innerHTML = '';
+        function populateRecipeOptions(selectedMeasure, presetValue = null, targetSelect = null) {
+            const sel = targetSelect || recipeMeasureSelect;
+            sel.innerHTML = '';
             let optionsToLoad = [];
             if (['L', 'ML', 'FL_OZ'].includes(selectedMeasure)) optionsToLoad = measureOptions.volume;
             else if (['KG', 'G', 'LBS', 'OZ'].includes(selectedMeasure)) optionsToLoad = measureOptions.weight;
@@ -1982,9 +2186,9 @@ function executeBulkExport() {
                 let newOption = document.createElement('option');
                 newOption.value = opt.val;
                 newOption.textContent = opt.text;
-                recipeMeasureSelect.appendChild(newOption);
+                sel.appendChild(newOption);
             });
-            if (presetValue) recipeMeasureSelect.value = presetValue;
+            if (presetValue) sel.value = presetValue;
         }
 
 
@@ -2324,25 +2528,27 @@ function executeBulkExport() {
             rows.forEach(r => {
                 const entry = getInventoryEntry(currentProperty, r.item.id);
                 const p0 = entry.purchases[0] || { cases: 0, packQty: 0 };
+                const descriptor = r.item.unitDescriptor || 'Unit';
+                const packPlaceholder = `+${descriptor}/Pk`;
                 const varianceColor = !r.hasCalc ? '#aaa' : (r.varianceQty > 0 ? '#e74c3c' : (r.varianceQty < 0 ? '#3498db' : '#18bc9c'));
                 const varianceQtyDisplay = r.hasCalc ? `${r.varianceQty >= 0 ? '+' : ''}${r.varianceQty.toFixed(2)} ${escapeHtml(r.item.recipeMeasure)}` : '\u2014';
                 const varianceCostDisplay = r.hasCalc ? `${r.varianceCost >= 0 ? '+' : ''}$${r.varianceCost.toFixed(2)}` : '\u2014';
                 const actualQtyDisplay = r.hasCalc ? `${r.actualQty.toFixed(2)} ${escapeHtml(r.item.recipeMeasure)}` : '\u2014';
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td><strong style="cursor:pointer;color:#2980b9;text-decoration:underline;" onclick="openItemDrilldown('${r.item.id}')" title="Click to see which recipes use this item">${escapeHtml(r.item.name)}</strong><br><span style="font-size:0.75rem;color:#7f8c8d;">${escapeHtml(r.item.packType || '')} ${r.item.units || ''} x ${r.item.unitSize || ''} ${escapeHtml(r.item.unitMeasure || '')}</span></td>
+                    <td><strong style="cursor:pointer;color:#2980b9;text-decoration:underline;" onclick="openItemDrilldown('${r.item.id}')" title="Click to see which recipes use this item">${escapeHtml(r.item.name)}</strong><br><span style="font-size:0.75rem;color:#7f8c8d;">${escapeHtml(r.item.packType || '')} ${r.item.units || ''} ${escapeHtml(descriptor)}${(parseFloat(r.item.units) === 1) ? '' : 's'} x ${r.item.unitSize || ''} ${escapeHtml(r.item.unitMeasure || '')}</span></td>
                     <td>${r.theoreticalQty.toFixed(2)} ${escapeHtml(r.item.recipeMeasure)}</td>
                     <td style="white-space:nowrap;">
                         <input type="number" step="0.01" placeholder="Cases" value="${entry.opening.cases || ''}" style="width:65px" oninput="updateInventoryField('${r.item.id}','opening','cases',this.value)">
-                        <input type="number" step="0.01" placeholder="+Each/Pk" value="${entry.opening.packQty || ''}" style="width:70px" oninput="updateInventoryField('${r.item.id}','opening','packQty',this.value)">
+                        <input type="number" step="0.01" placeholder="${escapeHtml(packPlaceholder)}" title="${escapeHtml(descriptor)}s per case" value="${entry.opening.packQty || ''}" style="width:70px" oninput="updateInventoryField('${r.item.id}','opening','packQty',this.value)">
                     </td>
                     <td style="white-space:nowrap;">
                         <input type="number" step="0.01" placeholder="Cases" value="${p0.cases || ''}" style="width:65px" oninput="updatePurchaseField('${r.item.id}',0,'cases',this.value)">
-                        <input type="number" step="0.01" placeholder="+Each/Pk" value="${p0.packQty || ''}" style="width:70px" oninput="updatePurchaseField('${r.item.id}',0,'packQty',this.value)">
+                        <input type="number" step="0.01" placeholder="${escapeHtml(packPlaceholder)}" title="${escapeHtml(descriptor)}s per case" value="${p0.packQty || ''}" style="width:70px" oninput="updatePurchaseField('${r.item.id}',0,'packQty',this.value)">
                     </td>
                     <td style="white-space:nowrap;">
                         <input type="number" step="0.01" placeholder="Cases" value="${entry.closing.cases || ''}" style="width:65px" oninput="updateInventoryField('${r.item.id}','closing','cases',this.value)">
-                        <input type="number" step="0.01" placeholder="+Each/Pk" value="${entry.closing.packQty || ''}" style="width:70px" oninput="updateInventoryField('${r.item.id}','closing','packQty',this.value)">
+                        <input type="number" step="0.01" placeholder="${escapeHtml(packPlaceholder)}" title="${escapeHtml(descriptor)}s per case" value="${entry.closing.packQty || ''}" style="width:70px" oninput="updateInventoryField('${r.item.id}','closing','packQty',this.value)">
                     </td>
                     <td>${actualQtyDisplay}</td>
                     <td style="font-weight:bold;color:${varianceColor}">${varianceQtyDisplay}</td>
@@ -2587,6 +2793,7 @@ function executeBulkExport() {
                 packType: plainText(document.getElementById('packType').value),
                 units: parseFloat(document.getElementById('unitsPerPack').value),
                 unitSize: parseFloat(document.getElementById('unitSize').value),
+                unitDescriptor: document.getElementById('unitDescriptor')?.value || 'Unit',
                 unitMeasure: document.getElementById('unitMeasure').value,
                 recipeMeasure: document.getElementById('recipeMeasure').value,
                             totalYield: parseFloat(document.getElementById('unitsPerPack').value) * parseFloat(document.getElementById('unitSize').value),
@@ -2611,27 +2818,97 @@ function executeBulkExport() {
              function editItem(id) {
             const item = itemDatabase.find(i => i.id === id.toString());
             if (!item) return;
+            openEditItemModal(item.id);
+        }
 
-            document.getElementById('editItemId').value = item.id;
-            document.getElementById('itemName').value = item.name;
-            document.getElementById('itemSku').value = item.sku || '';
-            document.getElementById('itemSupplier').value = item.supplier || '';
-            document.getElementById('itemCategory').value = item.category;
-            document.getElementById('itemStatus').value = item.status || 'active';
-            document.getElementById('invoiceCost').value = item.cost;
-            refreshPriceUpdatedDisplay(item.priceLastUpdated || '');
-            const updatePriceBtn = document.getElementById('updatePriceBtn');
-            if (updatePriceBtn) updatePriceBtn.style.display = 'inline-block';
-            document.getElementById('packType').value = item.packType;
-            document.getElementById('unitsPerPack').value = item.units;
-            document.getElementById('unitSize').value = item.unitSize;
-            document.getElementById('unitMeasure').value = item.unitMeasure;
-            populateRecipeOptions(item.unitMeasure, item.recipeMeasure);
-			document.getElementById('itemYield').value = item.yieldPct || 100;
+        function populateEditModalDropdowns() {
+            const catSel = document.getElementById('editModalItemCategory');
+            if (catSel) {
+                catSel.innerHTML = '';
+                categoryDatabase.forEach(cat => {
+                    const opt = document.createElement('option');
+                    opt.value = cat; opt.textContent = cat;
+                    catSel.appendChild(opt);
+                });
+            }
+            const supSel = document.getElementById('editModalItemSupplier');
+            if (supSel) {
+                supSel.innerHTML = '<option value="">Unassigned</option>';
+                supplierDatabase.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s; opt.textContent = s;
+                    supSel.appendChild(opt);
+                });
+            }
+            const packSel = document.getElementById('editModalPackType');
+            if (packSel) {
+                packSel.innerHTML = '<option value="" disabled>Select Pack Type...</option>';
+                packTypeDatabase.forEach(pt => {
+                    const opt = document.createElement('option');
+                    opt.value = pt; opt.textContent = pt;
+                    packSel.appendChild(opt);
+                });
+            }
+            const descSel = document.getElementById('editModalUnitDescriptor');
+            if (descSel) {
+                descSel.innerHTML = '';
+                unitDescriptorDatabase.forEach(ud => {
+                    const opt = document.createElement('option');
+                    opt.value = ud; opt.textContent = ud;
+                    descSel.appendChild(opt);
+                });
+            }
+        }
 
-                        // Block setting to inactive if item is still used in recipes
+        function updateEditModalPreview() {
+            const previewEl = document.getElementById('editModalItemPreview');
+            if (!previewEl) return;
+            const name = plainText(document.getElementById('editModalItemName')?.value) || 'This item';
+            const packType = document.getElementById('editModalPackType')?.value || '';
+            const units = document.getElementById('editModalUnitsPerPack')?.value || '';
+            const unitSize = document.getElementById('editModalUnitSize')?.value || '';
+            const unitMeasure = document.getElementById('editModalUnitMeasure')?.value || '';
+            const descriptor = document.getElementById('editModalUnitDescriptor')?.value || 'Unit';
+            if (!packType || !units || !unitSize || !unitMeasure) {
+                previewEl.textContent = 'Fill in Pack Type, Units per Pack, Size per Unit, and Unit Measure to see a live preview here.';
+                return;
+            }
+            previewEl.textContent = `${name} ${/s$/i.test(name) ? 'are' : 'is'} received in a ${packType}. Units per pack is ${units} ${descriptor}${parseFloat(units) === 1 ? '' : 's'}, each ${descriptor} is ${unitSize} ${unitMeasure}.`;
+        }
+
+        function refreshEditModalPriceDisplay(value) {
+            const display = document.getElementById('editModalPriceLastUpdatedDisplay');
+            const hidden = document.getElementById('editModalItemPriceLastUpdated');
+            if (hidden) hidden.value = value || '';
+            if (display) display.textContent = formatPriceUpdatedDate(value);
+        }
+
+        function openEditItemModal(id) {
+            const item = itemDatabase.find(i => i.id === id.toString());
+            if (!item) return;
+
+            populateEditModalDropdowns();
+
+            document.getElementById('editItemModalId').value = item.id;
+            document.getElementById('editModalItemName').value = item.name;
+            document.getElementById('editModalItemSku').value = item.sku || '';
+            document.getElementById('editModalItemSupplier').value = item.supplier || '';
+            document.getElementById('editModalItemCategory').value = item.category;
+            document.getElementById('editModalItemStatus').value = item.status || 'active';
+            document.getElementById('editModalInvoiceCost').value = item.cost;
+            refreshEditModalPriceDisplay(item.priceLastUpdated || '');
+
+            document.getElementById('editModalPackType').value = item.packType;
+            document.getElementById('editModalUnitsPerPack').value = item.units;
+            document.getElementById('editModalUnitSize').value = item.unitSize;
+            document.getElementById('editModalUnitDescriptor').value = item.unitDescriptor || 'Unit';
+            document.getElementById('editModalUnitMeasure').value = item.unitMeasure;
+            populateRecipeOptions(item.unitMeasure, item.recipeMeasure, document.getElementById('editModalRecipeMeasure'));
+            document.getElementById('editModalItemYield').value = item.yieldPct || 100;
+            updateEditModalPreview();
+
             const originalStatus = item.status || 'active';
-            document.getElementById('itemStatus').onchange = function() {
+            document.getElementById('editModalItemStatus').onchange = function() {
                 if (this.value === 'inactive') {
                     const usedInPrep = prepDatabase.filter(p =>
                         p.ingredients && p.ingredients.some(ing => ing.itemId === item.id)
@@ -2648,11 +2925,111 @@ function executeBulkExport() {
                     }
                 }
             };
+            document.getElementById('editModalUnitMeasure').onchange = function() {
+                populateRecipeOptions(this.value, null, document.getElementById('editModalRecipeMeasure'));
+                updateEditModalPreview();
+            };
+            ['editModalItemName','editModalPackType','editModalUnitsPerPack','editModalUnitSize','editModalUnitDescriptor'].forEach(fid => {
+                const el = document.getElementById(fid);
+                if (el) { el.oninput = updateEditModalPreview; el.onchange = updateEditModalPreview; }
+            });
 
-            document.getElementById('itemStatusGroup').style.display = 'block';
-            document.getElementById('submitBtn').textContent = "Save Changes";
-            document.getElementById('cancelBtn').style.display = "block";
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            document.getElementById('editItemModal').style.display = 'block';
+        }
+
+        function cancelEditItemModal() {
+            document.getElementById('editItemModal').style.display = 'none';
+            document.getElementById('editItemModalId').value = '';
+        }
+
+        function updateItemPriceFromModal() {
+            const id = document.getElementById('editItemModalId')?.value;
+            if (!id) return;
+            const item = itemDatabase.find(i => i.id === id);
+            if (!item) return;
+            const newCost = parseFloat(document.getElementById('editModalInvoiceCost')?.value || 0);
+            if (!Number.isFinite(newCost) || newCost < 0) { alert('Please enter a valid invoice cost before updating the price.'); return; }
+            const oldCost = parseFloat(item.cost || 0);
+            const stamp = new Date().toISOString();
+            if (!Array.isArray(item.priceHistory)) item.priceHistory = [];
+            item.priceHistory.push({ date: stamp, oldCost, newCost });
+            item.cost = newCost;
+            item.priceLastUpdated = stamp;
+            refreshEditModalPriceDisplay(stamp);
+            renderItemTable();
+            renderPrepTable(document.getElementById('searchPrepInput')?.value?.toLowerCase() || '');
+            renderMenuTable();
+            renderPropertyMenus();
+            renderSelectedPropertyMenuDetails();
+            renderVarianceTable();
+            saveAllDataToBrowser(false);
+            showToast(`Price updated for ${item.name}. Recipes and menu costs have been refreshed.`, 'success');
+        }
+
+        function saveItemFromModal() {
+            const id = document.getElementById('editItemModalId').value;
+            if (!id) return;
+            const enteredSku = plainText(document.getElementById('editModalItemSku').value);
+
+            if (enteredSku) {
+                const skuConflict = itemDatabase.find(item =>
+                    item.sku &&
+                    item.sku.trim().toLowerCase() === enteredSku.toLowerCase() &&
+                    item.id !== id
+                );
+                if (skuConflict) {
+                    alert(`⚠️ SKU "${enteredSku}" is already assigned to "${skuConflict.name}". Please use a unique SKU or leave the field blank.`);
+                    return;
+                }
+            }
+
+            const existingItem = itemDatabase.find(item => item.id === id);
+            if (!existingItem) return;
+
+            const newCost = parseFloat(document.getElementById('editModalInvoiceCost').value);
+            const oldCost = parseFloat(existingItem.cost || 0);
+            let priceLastUpdated = existingItem.priceLastUpdated || new Date().toISOString();
+            let priceHistory = Array.isArray(existingItem.priceHistory) ? [...existingItem.priceHistory] : [];
+            if (Math.abs((oldCost || 0) - newCost) > 0.0001 || !existingItem.priceLastUpdated) {
+                priceLastUpdated = new Date().toISOString();
+                priceHistory.push({ date: priceLastUpdated, oldCost, newCost });
+            }
+
+            const itemData = {
+                ...existingItem,
+                id,
+                name: plainText(document.getElementById('editModalItemName').value),
+                sku: enteredSku,
+                supplier: document.getElementById('editModalItemSupplier').value,
+                category: document.getElementById('editModalItemCategory').value,
+                status: document.getElementById('editModalItemStatus').value,
+                cost: newCost,
+                priceLastUpdated,
+                priceHistory,
+                packType: plainText(document.getElementById('editModalPackType').value),
+                units: parseFloat(document.getElementById('editModalUnitsPerPack').value),
+                unitSize: parseFloat(document.getElementById('editModalUnitSize').value),
+                unitDescriptor: document.getElementById('editModalUnitDescriptor')?.value || 'Unit',
+                unitMeasure: document.getElementById('editModalUnitMeasure').value,
+                recipeMeasure: document.getElementById('editModalRecipeMeasure').value,
+                totalYield: parseFloat(document.getElementById('editModalUnitsPerPack').value) * parseFloat(document.getElementById('editModalUnitSize').value),
+                yieldPct: parseFloat(document.getElementById('editModalItemYield').value) || 100
+            };
+
+            const existingIndex = itemDatabase.findIndex(item => item.id === id);
+            if (existingIndex > -1) itemDatabase[existingIndex] = itemData;
+
+            syncItemNameInRecipes(id, itemData.name);
+
+            cancelEditItemModal();
+            renderItemTable();
+            renderPrepTable(document.getElementById('searchPrepInput')?.value?.toLowerCase() || '');
+            renderMenuTable();
+            renderPropertyMenus();
+            renderSelectedPropertyMenuDetails();
+            renderVarianceTable();
+            saveAllDataToBrowser(false);
+            showToast(`${itemData.name} updated successfully.`, 'success');
         }
 
                     function cancelEdit() {
@@ -2666,6 +3043,9 @@ function executeBulkExport() {
             if (updatePriceBtn) updatePriceBtn.style.display = 'none';
             recipeMeasureSelect.innerHTML = '<option value="" disabled selected>Select Received Measure first...</option>';
 			document.getElementById('itemYield').value = 100;
+            const unitDescriptorReset = document.getElementById('unitDescriptor');
+            if (unitDescriptorReset) unitDescriptorReset.value = 'Unit';
+            updateItemFormPreview();
 
             const supplierSelect = document.getElementById('itemSupplier');
             if (supplierSelect) supplierSelect.value = '';
@@ -2739,6 +3119,12 @@ function executeBulkExport() {
         document.getElementById('filterItemCategory')?.addEventListener('change', function() { resetItemPagination(); renderItemTable(); });
         document.getElementById('filterItemSupplier')?.addEventListener('change', function() { resetItemPagination(); renderItemTable(); });
         document.getElementById('filterItemStatus')?.addEventListener('change', function() { resetItemPagination(); renderItemTable(); });
+
+        ['itemName','packType','unitsPerPack','unitSize','unitMeasure','unitDescriptor'].forEach(fieldId => {
+            const el = document.getElementById(fieldId);
+            if (el) el.addEventListener('input', updateItemFormPreview);
+            if (el) el.addEventListener('change', updateItemFormPreview);
+        });
 
         function updateItemSupplierFilterDropdown() {
             const sel = document.getElementById('filterItemSupplier');
