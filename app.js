@@ -3643,7 +3643,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                     <td id="cost-${data.id}" style="color: #18bc9c; font-weight:bold;">${costDisplay}</td>
                        <td>
 					    <div class="add-qty-container">
-                            <input type="number" step="0.01" id="qty-${data.id}" class="add-qty-input" placeholder="Qty">
+                            <input type="number" step="0.01" id="qty-${data.id}" class="add-qty-input" placeholder="Qty (use - to credit)">
                             <button class="add-btn" onclick="addIngredientToRecipe('${data.id}', '${data.type}', this)">Add</button>
                         </div>
                     </td>
@@ -3669,7 +3669,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
             const qtyInput = document.getElementById(`qty-${id}`);
             const qty = parseFloat(qtyInput.value);
 
-            if (!qty || qty <= 0) { alert("Please enter a valid quantity."); return; }
+            if (!qty || qty === 0 || Number.isNaN(qty)) { alert("Please enter a non-zero quantity. Use a negative number to credit/remove this ingredient (e.g., for a substitution)."); return; }
 
             let name, unit, costVal;
 
@@ -3729,15 +3729,20 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
         function editIngredientQuantity(target, index) {
             const arr = target === 'prep' ? currentPrepIngredients : currentMenuIngredients;
             const ing = arr[index];
-            const newQty = parseFloat(prompt(`Enter new quantity for ${ing.name} (Current: ${ing.qty} ${ing.unit}):`, ing.qty));
-            
-            if (newQty && newQty > 0) {
+            const newQty = parseFloat(prompt(`Enter new quantity for ${ing.name} (Current: ${ing.qty} ${ing.unit}). Use a negative number to credit/remove this ingredient:`, ing.qty));
+
+            if (!Number.isNaN(newQty) && newQty !== 0) {
                 ing.qty = newQty;
                 ing.totalCost = getLiveIngredientTotalCost(ing);
                 
                 if (target === 'prep') updatePrepIngredientTable();
                 else updateMenuIngredientTable();
             }
+        }
+
+        function formatCurrency(value) {
+            const v = parseFloat(value) || 0;
+            return `${v < 0 ? '-' : ''}$${Math.abs(v).toFixed(2)}`;
         }
 
         function updatePrepIngredientTable() {
@@ -3747,14 +3752,16 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
 
             let totalCost = 0;
             currentPrepIngredients.forEach((ing, index) => {
-                totalCost += getLiveIngredientTotalCost(ing);
-                tbody.innerHTML += `<tr><td><strong>${ing.name}</strong></td><td>${ing.qty}</td><td>${ing.unit}</td><td>$${getLiveIngredientTotalCost(ing).toFixed(2)}</td>
+                const lineCost = getLiveIngredientTotalCost(ing);
+                totalCost += lineCost;
+                const isCredit = parseFloat(ing.qty) < 0;
+                tbody.innerHTML += `<tr${isCredit ? ' style="background-color:#fdecea;"' : ''}><td><strong>${ing.name}</strong>${isCredit ? ' <span style="font-size:0.72rem;color:#e74c3c;font-weight:bold;">(credit)</span>' : ''}</td><td>${ing.qty}</td><td>${ing.unit}</td><td style="${isCredit ? 'color:#e74c3c;font-weight:bold;' : ''}">${formatCurrency(lineCost)}</td>
                 <td>
                     <button type="button" class="action-btn" style="background-color: var(--warning);" onclick="editIngredientQuantity('prep', ${index})">Edit</button>
                     <button type="button" class="action-btn" style="background-color: var(--cancel);" onclick="removeIngredient('prep', ${index})">X</button>
                 </td></tr>`;
             });
-            tbody.innerHTML += `<tr style="background-color: #e9ecef;"><td colspan="3" style="text-align: right; font-weight: bold;">Total Batch Cost:</td><td colspan="2" style="font-weight: bold; color: var(--primary);">$${totalCost.toFixed(2)}</td></tr>`;
+            tbody.innerHTML += `<tr style="background-color: #e9ecef;"><td colspan="3" style="text-align: right; font-weight: bold;">Total Batch Cost:</td><td colspan="2" style="font-weight: bold; color: var(--primary);">${formatCurrency(totalCost)}</td></tr>`;
         }
 
         function updateMenuIngredientTable() {
@@ -3764,14 +3771,16 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
 
             let totalCost = 0;
             currentMenuIngredients.forEach((ing, index) => {
-                totalCost += getLiveIngredientTotalCost(ing);
-                tbody.innerHTML += `<tr><td><strong>${ing.name}</strong></td><td>${ing.qty}</td><td>${ing.unit}</td><td>$${getLiveIngredientTotalCost(ing).toFixed(2)}</td>
+                const lineCost = getLiveIngredientTotalCost(ing);
+                totalCost += lineCost;
+                const isCredit = parseFloat(ing.qty) < 0;
+                tbody.innerHTML += `<tr${isCredit ? ' style="background-color:#fdecea;"' : ''}><td><strong>${ing.name}</strong>${isCredit ? ' <span style="font-size:0.72rem;color:#e74c3c;font-weight:bold;">(credit)</span>' : ''}</td><td>${ing.qty}</td><td>${ing.unit}</td><td style="${isCredit ? 'color:#e74c3c;font-weight:bold;' : ''}">${formatCurrency(lineCost)}</td>
                 <td>
                     <button type="button" class="action-btn" style="background-color: var(--warning);" onclick="editIngredientQuantity('menu', ${index})">Edit</button>
                     <button type="button" class="action-btn" style="background-color: var(--cancel);" onclick="removeIngredient('menu', ${index})">X</button>
                 </td></tr>`;
             });
-            tbody.innerHTML += `<tr style="background-color: #e9ecef;"><td colspan="3" style="text-align: right; font-weight: bold;">Total Plate Cost:</td><td colspan="2" style="font-weight: bold; color: var(--primary);">$${totalCost.toFixed(2)}</td></tr>`;
+            tbody.innerHTML += `<tr style="background-color: #e9ecef;"><td colspan="3" style="text-align: right; font-weight: bold;">Total Plate Cost:</td><td colspan="2" style="font-weight: bold; color: var(--primary);">${formatCurrency(totalCost)}</td></tr>`;
         }
 
         function removeIngredient(target, index) {
