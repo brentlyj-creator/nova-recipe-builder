@@ -428,8 +428,7 @@
                             <div style="display:flex; gap:8px; align-items:center;">
                                 <input type="number" step="0.01" id="invoiceCost" placeholder="e.g., 145.00" required style="flex:1;">
                                 <button type="button" id="updatePriceBtn" class="action-btn" onclick="updateItemPriceFromEdit()" style="display:none; white-space:nowrap; padding:8px 12px; margin-right:0; background-color:var(--info);">Update Price</button>
-                                <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:0.82rem; white-space:nowrap; margin:0;">
-                                    <input type="checkbox" id="itemExcludeFromVariance" style="width:auto;">
+                                <input type="checkbox" id="itemExcludeFromVariance" style="width:auto;">
                                     Exclude from Variance
                                 </label>
                             </div>
@@ -918,9 +917,13 @@
 
             <div class="grid-3">
                 <div class="form-group">
-                    <label>Category</label>
-                    <select id="editModalItemCategory"></select>
-                </div>
+			    <label>Category</label>
+			    <select id="editModalItemCategory"></select>
+			    <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:0.82rem; white-space:nowrap; margin-top:8px;">
+			        <input type="checkbox" id="editModalItemExcludeFromVariance" style="width:auto;">
+			        Exclude from Variance
+			    </label>
+			</div>
                 <div class="form-group" id="editModalItemStatusGroup">
                     <label>Status</label>
                     <select id="editModalItemStatus">
