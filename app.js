@@ -25,9 +25,9 @@
 
         let itemCurrentPage = 1;
         const ITEMS_PER_PAGE = 100;
-        const APP_VERSION = '15.0';
+        const APP_VERSION = '16.0';
         const APP_STORAGE_KEY = `fb_recipe_cogs_manager_v${APP_VERSION.replace('.', '_')}`;
-        const LEGACY_STORAGE_KEYS = ['fb_recipe_cogs_manager_v15'];
+        const LEGACY_STORAGE_KEYS = ['fb_recipe_cogs_manager_v15', 'fb_recipe_cogs_manager_v15_0'];
 
         // --- PROPERTY & CATEGORY MANAGEMENT LOGIC ---
                    function initSettings() {
@@ -2260,7 +2260,7 @@ function executeBulkExport() {
 
             if (ing.type === 'raw') {
                 const item = itemDatabase.find(i => i.id === ing.itemId);
-                if (!item) return;
+                if (!item || item.excludeFromVariance) return;
                 const qtyInRecipeUnit = convertQtyUnits(qty, ing.unit, item.recipeMeasure);
                 const totalQty = qtyInRecipeUnit * multiplier;
                 if (!usageMap[item.id]) usageMap[item.id] = { itemId: item.id, theoreticalQty: 0 };
@@ -2652,6 +2652,29 @@ function executeBulkExport() {
             return (calculateMenuFoodCost(menu) / price) * 100;
         }
 
+        // --- CREDIT INGREDIENT HELPERS ---
+        // Credit ingredients (negative qty) are used to net cost/usage behind the scenes,
+        // but must be hidden from kitchen-facing and manager-facing exports.
+        function isCreditIngredient(ing) {
+            return parseFloat(ing?.qty || 0) < 0;
+        }
+
+        function getNonCreditIngredients(menu) {
+            if (!menu || !Array.isArray(menu.ingredients)) return [];
+            return menu.ingredients.filter(ing => !isCreditIngredient(ing));
+        }
+
+        function calculateMenuFoodCostExcludingCredits(menu) {
+            if (!menu || !Array.isArray(menu.ingredients)) return 0;
+            return getNonCreditIngredients(menu).reduce((sum, ing) => sum + getLiveIngredientTotalCost(ing), 0);
+        }
+
+        function calculateMenuCostPercentageExcludingCredits(menu) {
+            const price = parseFloat(menu?.targetPrice || 0);
+            if (!price) return 0;
+            return (calculateMenuFoodCostExcludingCredits(menu) / price) * 100;
+        }
+
         // --- EXPORT FRESHNESS HELPERS ---
         function syncCurrentMenuEditBeforeExport(menuId = null) {
             const editId = document.getElementById('editMenuId')?.value || '';
@@ -2797,7 +2820,8 @@ function executeBulkExport() {
                 unitMeasure: document.getElementById('unitMeasure').value,
                 recipeMeasure: document.getElementById('recipeMeasure').value,
                             totalYield: parseFloat(document.getElementById('unitsPerPack').value) * parseFloat(document.getElementById('unitSize').value),
-            yieldPct: parseFloat(document.getElementById('itemYield').value) || 100
+            yieldPct: parseFloat(document.getElementById('itemYield').value) || 100,
+            excludeFromVariance: document.getElementById('itemExcludeFromVariance') ? document.getElementById('itemExcludeFromVariance').checked : false
             };
 
             const existingIndex = itemDatabase.findIndex(item => item.id === id);
@@ -2905,6 +2929,8 @@ function executeBulkExport() {
             document.getElementById('editModalUnitMeasure').value = item.unitMeasure;
             populateRecipeOptions(item.unitMeasure, item.recipeMeasure, document.getElementById('editModalRecipeMeasure'));
             document.getElementById('editModalItemYield').value = item.yieldPct || 100;
+            const excludeVarianceBox = document.getElementById('editModalItemExcludeFromVariance');
+            if (excludeVarianceBox) excludeVarianceBox.checked = !!item.excludeFromVariance;
             updateEditModalPreview();
 
             const originalStatus = item.status || 'active';
@@ -3013,7 +3039,8 @@ function executeBulkExport() {
                 unitMeasure: document.getElementById('editModalUnitMeasure').value,
                 recipeMeasure: document.getElementById('editModalRecipeMeasure').value,
                 totalYield: parseFloat(document.getElementById('editModalUnitsPerPack').value) * parseFloat(document.getElementById('editModalUnitSize').value),
-                yieldPct: parseFloat(document.getElementById('editModalItemYield').value) || 100
+                yieldPct: parseFloat(document.getElementById('editModalItemYield').value) || 100,
+                excludeFromVariance: document.getElementById('editModalItemExcludeFromVariance') ? document.getElementById('editModalItemExcludeFromVariance').checked : false
             };
 
             const existingIndex = itemDatabase.findIndex(item => item.id === id);
@@ -3043,6 +3070,8 @@ function executeBulkExport() {
             if (updatePriceBtn) updatePriceBtn.style.display = 'none';
             recipeMeasureSelect.innerHTML = '<option value="" disabled selected>Select Received Measure first...</option>';
 			document.getElementById('itemYield').value = 100;
+            const excludeVarianceReset = document.getElementById('itemExcludeFromVariance');
+            if (excludeVarianceReset) excludeVarianceReset.checked = false;
             const unitDescriptorReset = document.getElementById('unitDescriptor');
             if (unitDescriptorReset) unitDescriptorReset.value = 'Unit';
             updateItemFormPreview();
@@ -3197,7 +3226,7 @@ function executeBulkExport() {
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td><strong>${item.name}</strong></td>
+                    <td><strong>${item.name}</strong>${item.excludeFromVariance ? ' <span style="font-size:0.7rem;color:#e74c3c;">(no variance)</span>' : ''}</td>
                     <td>${skuDisplay}</td>
                     <td>${supplierDisplay}</td>
                     <td>${item.category || '—'}</td>
@@ -3772,8 +3801,8 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
             let totalCost = 0;
             currentMenuIngredients.forEach((ing, index) => {
                 const lineCost = getLiveIngredientTotalCost(ing);
-                totalCost += lineCost;
                 const isCredit = parseFloat(ing.qty) < 0;
+                if (!isCredit) totalCost += lineCost;
                 tbody.innerHTML += `<tr${isCredit ? ' style="background-color:#fdecea;"' : ''}><td><strong>${ing.name}</strong>${isCredit ? ' <span style="font-size:0.72rem;color:#e74c3c;font-weight:bold;">(credit)</span>' : ''}</td><td>${ing.qty}</td><td>${ing.unit}</td><td style="${isCredit ? 'color:#e74c3c;font-weight:bold;' : ''}">${formatCurrency(lineCost)}</td>
                 <td>
                     <button type="button" class="action-btn" style="background-color: var(--warning);" onclick="editIngredientQuantity('menu', ${index})">Edit</button>
@@ -4094,11 +4123,11 @@ function getCogsPdfStyles() {
         @media print { .no-print { display:none !important; } body { margin:0; } }`;
 }
 function buildMenuItemCogsPdfHTML(menu) {
-    const liveFoodCost = calculateMenuFoodCost(menu);
-    const liveCostPercentage = calculateMenuCostPercentage(menu);
+    const liveFoodCost = calculateMenuFoodCostExcludingCredits(menu);
+    const liveCostPercentage = calculateMenuCostPercentageExcludingCredits(menu);
     const costColor = getCogsCostColor(liveCostPercentage);
     const targetPrice = parseFloat(menu.targetPrice || 0);
-    const ingredientRows = (menu.ingredients || []).map(ing => `<tr><td>${escapeHtml(ing.name || '')}</td><td class="num">${escapeHtml(ing.qty ?? '')}</td><td>${escapeHtml(ing.unit || '')}</td><td class="num">$${getLiveIngredientTotalCost(ing).toFixed(2)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted" style="text-align:center;">No ingredients listed.</td></tr>';
+    const ingredientRows = getNonCreditIngredients(menu).map(ing => `<tr><td>${escapeHtml(ing.name || '')}</td><td class="num">${escapeHtml(ing.qty ?? '')}</td><td>${escapeHtml(ing.unit || '')}</td><td class="num">$${getLiveIngredientTotalCost(ing).toFixed(2)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted" style="text-align:center;">No ingredients listed.</td></tr>';
     return `<section class="cogs-page"><div class="cogs-title-row"><div><h1>${escapeHtml(menu.name || 'Menu Item')}</h1><div class="property-line">${escapeHtml(currentProperty || '')}</div></div></div>
         <div class="meta-grid"><div class="meta-card"><strong>Category</strong><span class="value">${escapeHtml(menu.category || '—')}</span></div><div class="meta-card"><strong>Target Price</strong><span class="value">$${targetPrice.toFixed(2)}</span></div><div class="meta-card"><strong>Food Cost</strong><span class="value">$${liveFoodCost.toFixed(2)}</span></div><div class="meta-card"><strong>Cost %</strong><span class="value" style="color:${costColor}; font-weight:800;">${liveCostPercentage.toFixed(1)}%</span></div><div class="meta-card"><strong>Cook Time</strong><span class="value">${escapeHtml(menu.cookTime || '—')}</span></div></div>
         <h2>Ingredients</h2><table><thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Cost</th></tr></thead><tbody>${ingredientRows}</tbody></table></section>`;
@@ -4269,8 +4298,8 @@ function generateMenuItemPptx(items) {
             charSpacing: 3
         });
 
-        // Ingredient list
-        const ingredients = (menu.ingredients || []);
+        // Ingredient list (credit/substitution rows are hidden from the kitchen card)
+        const ingredients = getNonCreditIngredients(menu);
         const ingLines = ingredients.length > 0
             ? ingredients.map(ing => {
                 const qtyUnit = `${ing.qty || ""} ${ing.unit || ""}`.trim();
