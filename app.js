@@ -2520,14 +2520,24 @@ function executeBulkExport() {
             if (rows.length === 0) {
                 body.innerHTML = `<p style="color:#777;">No menu items with Sold Qty currently use this item for ${escapeHtml(currentProperty)}.</p>`;
             } else {
-                const tableRows = rows.map(r => `
-                    <tr>
-                        <td><strong>${escapeHtml(r.menuItemName)}</strong><br><span style="font-size:0.75rem;color:#7f8c8d;">${escapeHtml(r.category)}</span></td>
-                        <td>${escapeHtml(r.path)}</td>
-                        <td>${r.qtyPerUnit} ${escapeHtml(r.unit)}</td>
-                        <td>${r.soldQty}</td>
-                        <td style="font-weight:bold;color:var(--primary);">${r.totalTheoreticalQty.toFixed(2)} ${escapeHtml(item.recipeMeasure)}</td>
-                    </tr>`).join('');
+                const tableRows = rows.map(r => {
+				  const effectiveQty = r.soldQty ? (r.totalTheoreticalQty / r.soldQty) : 0;
+				  const isViaPrep = r.path && r.path !== 'Direct ingredient';
+				  const qtyCell = isViaPrep
+					? `${effectiveQty.toFixed(2)} ${escapeHtml(item.recipeMeasure)}
+					   <br><span style="font-size:0.7rem;color:#aaa">(recipe batch calls for ${r.qtyPerUnit} ${escapeHtml(r.unit)})</span>`
+					: `${r.qtyPerUnit} ${escapeHtml(r.unit)}`;
+				  return `
+					<tr>
+					  <td><strong>${escapeHtml(r.menuItemName)}</strong><br>
+					  <span style="font-size:0.75rem;color:#7f8c8d">${escapeHtml(r.category)}</span></td>
+					  <td>${escapeHtml(r.path)}</td>
+					  <td>${qtyCell}</td>
+					  <td>${r.soldQty}</td>
+					  <td style="font-weight:bold;color:var(--primary)">${r.totalTheoreticalQty.toFixed(2)} ${escapeHtml(item.recipeMeasure)}</td>
+					</tr>
+				  `;
+				}).join('');
 
                 body.innerHTML = `
                     <p style="color:#7f8c8d;font-size:0.85rem;margin-top:-5px;">Theoretical usage is driven by Sold Qty on your Menu Builder. Items used only inside a Prep Recipe show the full path (e.g., Prep Name → Menu Item).</p>
@@ -2536,7 +2546,7 @@ function executeBulkExport() {
                             <tr>
                                 <th>Menu Item</th>
                                 <th>Used Via</th>
-                                <th>Qty per Serving/Batch</th>
+                                <th>Qty Used Per Sold Unit</th>
                                 <th>Sold Qty</th>
                                 <th>Theoretical Usage</th>
                             </tr>
