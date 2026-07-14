@@ -14,8 +14,9 @@
         let currentProperty = propertyDatabase[0];
 		let menuItemCategoryDatabase = ['Appies', 'Salads', 'Entrees', 'LWB'];
 		let prepCategoryDatabase = [];
-        let inventoryCountDatabase = {}; // { [property]: { [itemId]: { opening:{cases,packQty}, closing:{cases,packQty}, purchases:[{cases,packQty}] } } }
+        let inventoryCountDatabase = {}; // { [property]: { [itemId]: { opening:{cases,packQty,cost}, closing:{cases,packQty}, purchases:[{cases,packQty,cost}] } } }
         let varianceCalcCache = {}; // { [property]: { [itemId]: {theoreticalQty, actualQty, varianceQty, varianceCost, costPerUnit} } }
+        let varianceLastCalculated = {}; // { [property]: ISOStringDate }
         let currentPrepIngredients = [];
         let currentMenuIngredients = [];
         let activeModalTarget = ''; 
@@ -479,6 +480,8 @@ function executeBulkExport() {
                 menuItemCategoryDatabase: Array.isArray(menuItemCategoryDatabase) ? [...menuItemCategoryDatabase] : [],
                 prepCategoryDatabase: Array.isArray(prepCategoryDatabase) ? [...prepCategoryDatabase] : [],
                 inventoryCountDatabase: (inventoryCountDatabase && typeof inventoryCountDatabase === 'object') ? inventoryCountDatabase : {},
+                varianceCalcCache: (varianceCalcCache && typeof varianceCalcCache === 'object') ? varianceCalcCache : {},
+                varianceLastCalculated: (varianceLastCalculated && typeof varianceLastCalculated === 'object') ? varianceLastCalculated : {},
                 itemDatabase: Array.isArray(itemDatabase) ? [...itemDatabase] : [],
                 prepDatabase: Array.isArray(prepDatabase) ? [...prepDatabase] : [],
                 menuDatabase: Array.isArray(menuDatabase) ? [...menuDatabase] : [],
@@ -496,6 +499,8 @@ function executeBulkExport() {
             menuItemCategoryDatabase = Array.isArray(data.menuItemCategoryDatabase) ? data.menuItemCategoryDatabase : ['Appies', 'Salads', 'Entrees', 'LWB'];
             prepCategoryDatabase = Array.isArray(data.prepCategoryDatabase) ? data.prepCategoryDatabase : [];
             inventoryCountDatabase = (data.inventoryCountDatabase && typeof data.inventoryCountDatabase === 'object') ? data.inventoryCountDatabase : {};
+            varianceCalcCache = (data.varianceCalcCache && typeof data.varianceCalcCache === 'object') ? data.varianceCalcCache : {};
+            varianceLastCalculated = (data.varianceLastCalculated && typeof data.varianceLastCalculated === 'object') ? data.varianceLastCalculated : {};
             itemDatabase = Array.isArray(data.itemDatabase) ? data.itemDatabase : [];
             prepDatabase = Array.isArray(data.prepDatabase) ? data.prepDatabase : [];
             menuDatabase = Array.isArray(data.menuDatabase) ? data.menuDatabase : [];
@@ -2390,15 +2395,17 @@ function executeBulkExport() {
             if (!inventoryCountDatabase[property]) inventoryCountDatabase[property] = {};
             if (!inventoryCountDatabase[property][itemId]) {
                 inventoryCountDatabase[property][itemId] = {
-                    opening: { cases: 0, packQty: 0 },
+                    opening: { cases: 0, packQty: 0, cost: 0 },
                     closing: { cases: 0, packQty: 0 },
-                    purchases: [{ cases: 0, packQty: 0 }]
+                    purchases: [{ cases: 0, packQty: 0, cost: 0 }]
                 };
             }
             const entry = inventoryCountDatabase[property][itemId];
-            if (!entry.opening || typeof entry.opening !== 'object') entry.opening = { cases: parseFloat(entry.opening) || 0, packQty: 0 };
+            if (!entry.opening || typeof entry.opening !== 'object') entry.opening = { cases: parseFloat(entry.opening) || 0, packQty: 0, cost: 0 };
+            if (entry.opening.cost === undefined) entry.opening.cost = 0;
             if (!entry.closing || typeof entry.closing !== 'object') entry.closing = { cases: parseFloat(entry.closingQty) || 0, packQty: 0 };
-            if (!Array.isArray(entry.purchases) || entry.purchases.length === 0) entry.purchases = [{ cases: 0, packQty: 0 }];
+            if (!Array.isArray(entry.purchases) || entry.purchases.length === 0) entry.purchases = [{ cases: 0, packQty: 0, cost: 0 }];
+            entry.purchases.forEach(p => { if (p.cost === undefined) p.cost = 0; });
             return entry;
         }
 
@@ -2410,12 +2417,45 @@ function executeBulkExport() {
             return openingQty + purchasedQty - closingQty;
         }
 
+        // Weighted Average Cost (WAC): blends the total dollar value of Opening Inventory with every
+        // Purchase entered this period (each valued at the "Cost/Case" you type in), then divides total
+        // dollars by total recipe-unit quantity. This gives a single blended cost per recipe unit instead
+        // of just the price of the most recent invoice. Falls back to the Item Master cost if no cost has
+        // been entered for Opening or Purchases yet.
+        function calculateWeightedAverageCost(property, item) {
+            const entry = getInventoryEntry(property, item.id);
+            const fallbackCost = parseFloat(item.cost) || calculateUnitCost(item) || 0;
+
+            const openingQty = convertPurchaseToRecipeUnits(item, entry.opening.cases, entry.opening.packQty);
+            const openingCases = parseFloat(entry.opening.cases) || 0;
+            const openingCaseCost = parseFloat(entry.opening.cost) || 0;
+            const openingValue = (openingCaseCost && openingCases) ? (openingCaseCost * openingCases) : (openingQty * fallbackCost);
+
+            let totalQty = openingQty;
+            let totalValue = openingValue;
+
+            (entry.purchases || []).forEach(p => {
+                const qty = convertPurchaseToRecipeUnits(item, p.cases, p.packQty);
+                if (!qty) return;
+                const cases = parseFloat(p.cases) || 0;
+                const caseCost = parseFloat(p.cost) || 0;
+                const value = (caseCost && cases) ? (caseCost * cases) : (qty * fallbackCost);
+                totalQty += qty;
+                totalValue += value;
+            });
+
+            if (!totalQty) return fallbackCost;
+            return totalValue / totalQty;
+        }
+
         function calculateVariance() {
             const rows = getVarianceScopeItems();
             const cache = {};
             rows.forEach(r => { cache[r.item.id] = r; });
             varianceCalcCache[currentProperty] = cache;
+            varianceLastCalculated[currentProperty] = new Date().toISOString();
             renderVarianceTable();
+            saveAllDataToBrowser(false);
             showToast('Variance calculated.', 'success');
         }
 
@@ -2426,7 +2466,7 @@ function executeBulkExport() {
                 const theoreticalQty = usageMap[item.id]?.theoreticalQty || 0;
                 const actualQty = calculateActualUsage(currentProperty, item);
                 const varianceQty = actualQty - theoreticalQty;
-                const costPerUnit = calculateUnitCost(item) || 0;
+                const costPerUnit = calculateWeightedAverageCost(currentProperty, item) || calculateUnitCost(item) || 0;
                 const varianceCost = varianceQty * costPerUnit;
                 return { item, theoreticalQty, actualQty, varianceQty, varianceCost, costPerUnit };
             });
@@ -2520,24 +2560,14 @@ function executeBulkExport() {
             if (rows.length === 0) {
                 body.innerHTML = `<p style="color:#777;">No menu items with Sold Qty currently use this item for ${escapeHtml(currentProperty)}.</p>`;
             } else {
-                const tableRows = rows.map(r => {
-				  const effectiveQty = r.soldQty ? (r.totalTheoreticalQty / r.soldQty) : 0;
-				  const isViaPrep = r.path && r.path !== 'Direct ingredient';
-				  const qtyCell = isViaPrep
-					? `${effectiveQty.toFixed(2)} ${escapeHtml(item.recipeMeasure)}
-					   <br><span style="font-size:0.7rem;color:#aaa">(recipe batch calls for ${r.qtyPerUnit} ${escapeHtml(r.unit)})</span>`
-					: `${r.qtyPerUnit} ${escapeHtml(r.unit)}`;
-				  return `
-					<tr>
-					  <td><strong>${escapeHtml(r.menuItemName)}</strong><br>
-					  <span style="font-size:0.75rem;color:#7f8c8d">${escapeHtml(r.category)}</span></td>
-					  <td>${escapeHtml(r.path)}</td>
-					  <td>${qtyCell}</td>
-					  <td>${r.soldQty}</td>
-					  <td style="font-weight:bold;color:var(--primary)">${r.totalTheoreticalQty.toFixed(2)} ${escapeHtml(item.recipeMeasure)}</td>
-					</tr>
-				  `;
-				}).join('');
+                const tableRows = rows.map(r => `
+                    <tr>
+                        <td><strong>${escapeHtml(r.menuItemName)}</strong><br><span style="font-size:0.75rem;color:#7f8c8d;">${escapeHtml(r.category)}</span></td>
+                        <td>${escapeHtml(r.path)}</td>
+                        <td>${r.qtyPerUnit} ${escapeHtml(r.unit)}</td>
+                        <td>${r.soldQty}</td>
+                        <td style="font-weight:bold;color:var(--primary);">${r.totalTheoreticalQty.toFixed(2)} ${escapeHtml(item.recipeMeasure)}</td>
+                    </tr>`).join('');
 
                 body.innerHTML = `
                     <p style="color:#7f8c8d;font-size:0.85rem;margin-top:-5px;">Theoretical usage is driven by Sold Qty on your Menu Builder. Items used only inside a Prep Recipe show the full path (e.g., Prep Name → Menu Item).</p>
@@ -2546,7 +2576,7 @@ function executeBulkExport() {
                             <tr>
                                 <th>Menu Item</th>
                                 <th>Used Via</th>
-                                <th>Qty Used Per Sold Unit</th>
+                                <th>Qty per Serving/Batch</th>
                                 <th>Sold Qty</th>
                                 <th>Theoretical Usage</th>
                             </tr>
@@ -2585,7 +2615,7 @@ function executeBulkExport() {
                     actualQty: cached ? cached.actualQty : null,
                     varianceQty: cached ? cached.varianceQty : null,
                     varianceCost: cached ? cached.varianceCost : null,
-                    costPerUnit: cached ? cached.costPerUnit : (calculateUnitCost(item) || 0)
+                    costPerUnit: cached ? cached.costPerUnit : (calculateWeightedAverageCost(currentProperty, item) || calculateUnitCost(item) || 0)
                 };
             });
 
@@ -2594,6 +2624,25 @@ function executeBulkExport() {
             else if (sortMode === 'qty-low-high') rows.sort((a, b) => (a.varianceQty ?? Infinity) - (b.varianceQty ?? Infinity));
             else if (sortMode === 'cost-high-low') rows.sort((a, b) => (b.varianceCost ?? -Infinity) - (a.varianceCost ?? -Infinity));
             else if (sortMode === 'cost-low-high') rows.sort((a, b) => (a.varianceCost ?? Infinity) - (b.varianceCost ?? Infinity));
+            else if (sortMode === 'top15-bottom10-dollar') {
+                const sorted = [...rows].sort((a, b) => (b.varianceCost ?? -Infinity) - (a.varianceCost ?? -Infinity));
+                const top = sorted.slice(0, 15);
+                const bottom = sorted.slice(-10).reverse();
+                rows = [...top, ...bottom];
+            } else if (sortMode === 'top15-bottom10-qty') {
+                const sorted = [...rows].sort((a, b) => (b.varianceQty ?? -Infinity) - (a.varianceQty ?? -Infinity));
+                const top = sorted.slice(0, 15);
+                const bottom = sorted.slice(-10).reverse();
+                rows = [...top, ...bottom];
+            }
+
+            const lastCalcEl = document.getElementById('varianceLastCalculated');
+            if (lastCalcEl) {
+                const ts = varianceLastCalculated[currentProperty];
+                lastCalcEl.textContent = ts
+                    ? `Last calculated: ${new Date(ts).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`
+                    : 'Not yet calculated for this property.';
+            }
 
             tbody.innerHTML = '';
             if (rows.length === 0) {
@@ -2617,10 +2666,12 @@ function executeBulkExport() {
                     <td style="white-space:nowrap;">
                         <input type="number" step="0.01" placeholder="Cases" value="${entry.opening.cases || ''}" style="width:65px" oninput="updateInventoryField('${r.item.id}','opening','cases',this.value)">
                         <input type="number" step="0.01" placeholder="${escapeHtml(packPlaceholder)}" title="${escapeHtml(descriptor)}s per case" value="${entry.opening.packQty || ''}" style="width:70px" oninput="updateInventoryField('${r.item.id}','opening','packQty',this.value)">
+                        <br><input type="number" step="0.01" placeholder="Cost/Case" title="Cost per case for Opening Inventory (used for Weighted Average Cost)" value="${entry.opening.cost || ''}" style="width:78px;margin-top:4px;" oninput="updateInventoryField('${r.item.id}','opening','cost',this.value)">
                     </td>
                     <td style="white-space:nowrap;">
                         <input type="number" step="0.01" placeholder="Cases" value="${p0.cases || ''}" style="width:65px" oninput="updatePurchaseField('${r.item.id}',0,'cases',this.value)">
                         <input type="number" step="0.01" placeholder="${escapeHtml(packPlaceholder)}" title="${escapeHtml(descriptor)}s per case" value="${p0.packQty || ''}" style="width:70px" oninput="updatePurchaseField('${r.item.id}',0,'packQty',this.value)">
+                        <br><input type="number" step="0.01" placeholder="Cost/Case" title="Cost per case for this purchase (used for Weighted Average Cost)" value="${p0.cost || ''}" style="width:78px;margin-top:4px;" oninput="updatePurchaseField('${r.item.id}',0,'cost',this.value)">
                     </td>
                     <td style="white-space:nowrap;">
                         <input type="number" step="0.01" placeholder="Cases" value="${entry.closing.cases || ''}" style="width:65px" oninput="updateInventoryField('${r.item.id}','closing','cases',this.value)">
@@ -2665,13 +2716,14 @@ function executeBulkExport() {
             Object.keys(propEntries).forEach(itemId => {
                 const entry = propEntries[itemId];
                 newPropEntries[itemId] = {
-                    opening: transfer ? { cases: entry.closing.cases || 0, packQty: entry.closing.packQty || 0 } : { cases: 0, packQty: 0 },
+                    opening: transfer ? { cases: entry.closing.cases || 0, packQty: entry.closing.packQty || 0, cost: entry.opening.cost || 0 } : { cases: 0, packQty: 0, cost: 0 },
                     closing: { cases: 0, packQty: 0 },
-                    purchases: [{ cases: 0, packQty: 0 }]
+                    purchases: [{ cases: 0, packQty: 0, cost: 0 }]
                 };
             });
             inventoryCountDatabase[currentProperty] = newPropEntries;
             varianceCalcCache[currentProperty] = {};
+            delete varianceLastCalculated[currentProperty];
             renderVarianceTable();
             saveAllDataToBrowser(false);
             showToast(transfer ? 'Closing counts carried forward to Opening. Purchases and Closing reset.' : 'All counts reset for ' + currentProperty + '.', 'success');
