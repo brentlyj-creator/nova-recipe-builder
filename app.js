@@ -2602,6 +2602,17 @@ function executeBulkExport() {
             else if (sortMode === 'qty-low-high') rows.sort((a, b) => (a.varianceQty ?? Infinity) - (b.varianceQty ?? Infinity));
             else if (sortMode === 'cost-high-low') rows.sort((a, b) => (b.varianceCost ?? -Infinity) - (a.varianceCost ?? -Infinity));
             else if (sortMode === 'cost-low-high') rows.sort((a, b) => (a.varianceCost ?? Infinity) - (b.varianceCost ?? Infinity));
+            else if (sortMode === 'top15-bottom10-dollar') {
+                const sorted = [...rows].sort((a, b) => (b.varianceCost ?? -Infinity) - (a.varianceCost ?? -Infinity));
+                const top = sorted.slice(0, 15);
+                const bottom = sorted.slice(-10).reverse();
+                rows = [...top, ...bottom];
+            } else if (sortMode === 'top15-bottom10-qty') {
+                const sorted = [...rows].sort((a, b) => (b.varianceQty ?? -Infinity) - (a.varianceQty ?? -Infinity));
+                const top = sorted.slice(0, 15);
+                const bottom = sorted.slice(-10).reverse();
+                rows = [...top, ...bottom];
+            }
 
             const lastCalcEl = document.getElementById('varianceLastCalculated');
             if (lastCalcEl) {
