@@ -62,7 +62,10 @@
         .rte-toolbar button { background: white; border: 1px solid #ccc; border-radius: 3px; padding: 5px 12px; cursor: pointer; font-size: 0.9rem; font-weight: bold; color: #333; }
         .rte-toolbar button:hover { background: #dee2e6; }
         .rte-editor { padding: 15px; min-height: 150px; outline: none; line-height: 1.5; font-size: 0.95rem; }
-        .rte-editor ul, .rte-editor ol { margin: 4px 0 4px 24px; padding-left: 8px; }
+        .rte-editor ul, .rte-editor ol { margin: 4px 0 4px 24px; padding-left: 8px; list-style-position: outside; }
+		.rte-editor ul { list-style-type: disc; }
+		.rte-editor ol { list-style-type: decimal; }
+		.rte-editor li { display: list-item; }
         .rte-editor li { margin: 3px 0; }
         .rte-editor[placeholder]:empty:before { content: attr(placeholder); color: #aaa; cursor: text; }
 
@@ -71,7 +74,10 @@
         .recipe-meta-card { background: #f8f9fa; border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; font-size: 0.9rem; }
         .recipe-meta-card strong { display: block; font-size: 0.75rem; text-transform: uppercase; color: #7f8c8d; margin-bottom: 4px; }
         .recipe-steps-preview { border: 1px solid var(--border-color); border-radius: 6px; padding: 15px; background: #fff; line-height: 1.6; }
-        .recipe-steps-preview ul, .recipe-steps-preview ol { margin: 0 0 0 20px; padding-left: 10px; }
+        .recipe-steps-preview ul, .recipe-steps-preview ol { margin: 0 0 0 20px; padding-left: 10px; list-style-position: outside; }
+		.recipe-steps-preview ul { list-style-type: disc; }
+		.recipe-steps-preview ol { list-style-type: decimal; }
+		.recipe-steps-preview li { display: list-item; }
         .recipe-steps-preview li { margin: 4px 0; }
         .recipe-row-clickable { cursor: pointer; }
         .recipe-row-clickable:hover { background-color: #e8f4f2 !important; }
