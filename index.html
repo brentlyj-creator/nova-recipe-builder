@@ -480,7 +480,8 @@
                             <div style="display:flex; gap:8px; align-items:center;">
                                 <input type="number" step="0.01" id="invoiceCost" placeholder="e.g., 145.00" required style="flex:1;">
                                 <button type="button" id="updatePriceBtn" class="action-btn" onclick="updateItemPriceFromEdit()" style="display:none; white-space:nowrap; padding:8px 12px; margin-right:0; background-color:var(--info);">Update Price</button>
-                                <input type="checkbox" id="itemExcludeFromVariance" style="width:auto;">
+                                <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:0.82rem; white-space:nowrap; margin:0;">
+                                    <input type="checkbox" id="itemExcludeFromVariance" style="width:auto; margin:0;">
                                     Exclude from Variance
                                 </label>
                             </div>
@@ -547,10 +548,27 @@
                             <input type="number" id="itemYield" step="0.1" min="1" max="100" value="100" placeholder="e.g., 85">
                             <span style="font-size:0.8rem; color:#888;">(after cleaning/cooking)</span>
                         </div>
-                        <div class="form-group btn-group" style="align-self:end;">
-                            <button type="submit" id="submitBtn" class="btn-submit">Save New Item</button>
-                            <button type="button" id="cancelBtn" class="btn-cancel" onclick="cancelEdit()">Cancel</button>
+
+                    </div>
+                
+
+                    <hr style="border:0;border-top:1px solid var(--border-color);margin:20px 0;">
+                    <div class="form-section" style="background:#fff; margin-bottom:20px;">
+                        <h3>Custom Unit Conversions <span style="font-size:0.75rem;color:#888;font-weight:normal;">(e.g. Cups for a KG-received item)</span></h3>
+                        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+                            <input type="number" step="0.01" id="customConvFromQty" placeholder="Qty" style="width:70px;">
+                            <select id="customConvFromUnit" style="width:140px;"></select>
+                            <span>=</span>
+                            <input type="number" step="0.01" id="customConvToQty" placeholder="Qty" style="width:70px;">
+                            <select id="customConvToUnit" style="width:140px;"></select>
+                            <button type="button" class="action-btn" onclick="addCustomConversion(false)">Add Conversion</button>
                         </div>
+                        <div id="customConversionList"></div>
+                    </div>
+
+                    <div class="btn-group">
+                        <button type="submit" id="submitBtn" class="btn-submit">Save New Item</button>
+                        <button type="button" id="cancelBtn" class="btn-cancel" onclick="cancelEdit()">Cancel</button>
                     </div>
                 </form>
             </div>
@@ -689,37 +707,12 @@
                         </div>
                         <div id="prepSteps" class="rte-editor" contenteditable="true" placeholder="Enter detailed preparation steps, cooking times, and storage instructions here..."></div>
                     </div>
-
                     <div class="btn-group">
-					    <button type="submit" class="btn-submit">Save Prep Recipe</button>
-					    <button type="button" id="prepCancelBtn" class="btn-cancel" onclick="cancelPrepEdit()">Cancel</button>
-					</div>
-					                <div class="form-group">
-                    <label>Yield (%)</label>
-                    <input type="number" id="itemYield" step="0.1" min="1" max="100" value="100" placeholder="e.g., 85">
-                    <span style="font-size:0.8rem; color:#888;">(after cleaning/cooking)</span>
-                </div>
-                <div class="form-group btn-group" style="align-self:end;">
-                    <button type="submit" id="submitBtn" class="btn-submit">Save New Item</button>
-                    <button type="button" id="cancelBtn" class="btn-cancel" onclick="cancelEdit()">Cancel</button>
-                </div>
+                        <button type="submit" class="btn-submit">Save Prep Recipe</button>
+                        <button type="button" id="prepCancelBtn" class="btn-cancel" onclick="cancelPrepEdit()">Cancel</button>
+                    </div>
+                </form>
             </div>
-
-            <hr style="border:0;border-top:1px solid var(--border-color);margin:20px 0;">
-            <div class="form-section" style="background:#fff;">
-              <h3>Custom Unit Conversions <span style="font-size:0.75rem;color:#888;font-weight:normal;">(e.g. Cups for a KG-received item)</span></h3>
-              <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
-                <input type="number" step="0.01" id="customConvFromQty" placeholder="Qty" style="width:70px;">
-                <select id="customConvFromUnit" style="width:140px;"></select>
-                <span>=</span>
-                <input type="number" step="0.01" id="customConvToQty" placeholder="Qty" style="width:70px;">
-                <select id="customConvToUnit" style="width:140px;"></select>
-                <button type="button" class="action-btn" onclick="addCustomConversion(false)">Add Conversion</button>
-              </div>
-              <div id="customConversionList"></div>
-            </div>
-        </form>
-    </div>
                
             <div class="table-tools">
                 <h3>Saved Prep Recipes</h3>
