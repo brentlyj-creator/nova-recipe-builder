@@ -1077,7 +1077,21 @@
                     <span style="font-size:0.8rem; color:#888;">(after cleaning/cooking)</span>
                 </div>
             </div>
-
+			
+			<hr style="border:0;border-top:1px solid var(--border-color);margin:20px 0;">
+			            <div class="form-section" style="background:#fff;">
+			              <h3>Custom Unit Conversions <span style="font-size:0.75rem;color:#888;font-weight:normal;">(e.g. Cups for a KG-received item)</span></h3>
+			              <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+			                <input type="number" step="0.01" id="editModalCustomConvFromQty" placeholder="Qty" style="width:70px;">
+			                <select id="editModalCustomConvFromUnit" style="width:140px;"></select>
+			                <span>=</span>
+			                <input type="number" step="0.01" id="editModalCustomConvToQty" placeholder="Qty" style="width:70px;">
+			                <select id="editModalCustomConvToUnit" style="width:140px;"></select>
+			                <button type="button" class="action-btn" onclick="addCustomConversion(true)">Add Conversion</button>
+			              </div>
+			              <div id="editModalCustomConversionList"></div>
+			            </div>
+			
             <div class="btn-group" style="margin-top: 15px;">
                 <button type="button" class="btn-submit" onclick="saveItemFromModal()">Save Changes</button>
                 <button type="button" class="btn-cancel" style="display:block;" onclick="cancelEditItemModal()">Cancel</button>
@@ -1086,7 +1100,6 @@
     </div>
 
     <script src="app.js"></script>
-
 
     <script>
       if ('serviceWorker' in navigator) {
