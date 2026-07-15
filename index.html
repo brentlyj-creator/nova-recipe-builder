@@ -552,19 +552,6 @@
                             <button type="button" id="cancelBtn" class="btn-cancel" onclick="cancelEdit()">Cancel</button>
                         </div>
                     </div>
-
-                    <div class="form-section" id="customConversionGroup" style="margin-top:15px; margin-bottom:0; background:#eef7f5;">
-                        <label style="display:block; margin-bottom:8px;">Custom Unit Conversions <span style="font-weight:normal; color:#888; font-size:0.8rem;">(optional &mdash; e.g. 8 OZ = 1 Cups)</span></label>
-                        <div id="customConversionList" style="margin-bottom:10px;"></div>
-                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                            <input type="number" step="0.001" id="customConvFromQty" placeholder="Qty" style="width:70px;">
-                            <select id="customConvFromUnit" style="width:150px;"></select>
-                            <span style="font-weight:bold; color:#888;">=</span>
-                            <input type="number" step="0.001" id="customConvToQty" placeholder="Qty" style="width:70px;">
-                            <select id="customConvToUnit" style="width:150px;"></select>
-                            <button type="button" class="action-btn" style="margin:0;" onclick="addCustomConversion()">Add Conversion</button>
-                        </div>
-                    </div>
                 </form>
             </div>
 
@@ -957,6 +944,30 @@
         </div>
     </div>
 
+        <div id="editIngredientModal" class="modal" style="display:none;">
+        <div class="modal-content small">
+            <div class="modal-header">
+                <h2>Edit Ingredient</h2>
+                <span class="close" onclick="cancelEditIngredientModal()">&times;</span>
+            </div>
+            <p style="font-size:0.9rem; margin-bottom:15px; color:#666;">Editing <strong id="editIngredientModalName"></strong>. Use a negative number to credit/remove this ingredient.</p>
+            <div style="display:flex; gap:10px;">
+                <div class="form-group" style="flex:1;">
+                    <label>Quantity</label>
+                    <input type="number" step="0.001" id="editIngredientModalQty">
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label>Unit</label>
+                    <select id="editIngredientModalUnit"></select>
+                </div>
+            </div>
+            <div class="btn-group" style="margin-top:15px;">
+                <button type="button" class="btn-submit" onclick="saveEditIngredientModal()">Save</button>
+                <button type="button" class="btn-cancel" style="display:block;" onclick="cancelEditIngredientModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <div id="editItemModal" class="modal">
         <div class="modal-content" style="width: 70%; max-width: 800px;">
             <div class="modal-header">
@@ -1064,19 +1075,6 @@
                     <label>Yield (%)</label>
                     <input type="number" id="editModalItemYield" step="0.1" min="1" max="100" value="100">
                     <span style="font-size:0.8rem; color:#888;">(after cleaning/cooking)</span>
-                </div>
-            </div>
-
-            <div class="form-section" id="editModalCustomConversionGroup" style="margin-top:0; margin-bottom:15px; background:#eef7f5;">
-                <label style="display:block; margin-bottom:8px;">Custom Unit Conversions <span style="font-weight:normal; color:#888; font-size:0.8rem;">(optional &mdash; e.g. 8 OZ = 1 Cups)</span></label>
-                <div id="editModalCustomConversionList" style="margin-bottom:10px;"></div>
-                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                    <input type="number" step="0.001" id="editModalCustomConvFromQty" placeholder="Qty" style="width:70px;">
-                    <select id="editModalCustomConvFromUnit" style="width:150px;"></select>
-                    <span style="font-weight:bold; color:#888;">=</span>
-                    <input type="number" step="0.001" id="editModalCustomConvToQty" placeholder="Qty" style="width:70px;">
-                    <select id="editModalCustomConvToUnit" style="width:150px;"></select>
-                    <button type="button" class="action-btn" style="margin:0;" onclick="addCustomConversion(true)">Add Conversion</button>
                 </div>
             </div>
 
