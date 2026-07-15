@@ -512,7 +512,7 @@ function executeBulkExport() {
             prepCategoryDatabase = prepCategoryDatabase.map(plainText).filter(Boolean);
             reconcilePrepCategories();
             sanitizePlainTextFields(itemDatabase, ['id','name','sku','supplier','category','status','packType','unitDescriptor','unitMeasure','recipeMeasure','priceLastUpdated']);
-            itemDatabase.forEach(item => { if (!item.unitDescriptor) item.unitDescriptor = 'Unit'; });
+            itemDatabase.forEach(item => { if (!item.unitDescriptor) item.unitDescriptor = 'Unit'; if (!Array.isArray(item.customConversions)) item.customConversions = []; });
             sanitizePlainTextFields(prepDatabase, ['id','property','name','category','yieldUnit','shelfLife','usage','usageUnit','portionUnit']);
             sanitizePlainTextFields(menuDatabase, ['id','property','name','category','cookTime']);
             sanitizePlainTextFields(propertyMenuDatabase, ['id','property','name']);
@@ -2235,20 +2235,118 @@ function executeBulkExport() {
         const recipeMeasureSelect = document.getElementById('recipeMeasure');
 
         const measureOptions = {
-            volume: [{ val: 'L', text: 'Liters (L)' }, { val: 'ML', text: 'Milliliters (ML)' }, { val: 'FL_OZ', text: 'Fluid Ounces (fl oz)' }, { val: 'Cups', text: 'Cups' }, { val: 'Tbsp', text: 'Tablespoons (tbsp)' }, { val: 'Tsp', text: 'Teaspoons (tsp)' }, { val: 'Each', text: 'Each (Single Unit)' }, { val: 'Custom_Weight', text: 'Custom Conversion to Weight' }],
-            weight: [{ val: 'KG', text: 'Kilograms (KG)' }, { val: 'G', text: 'Grams (G)' }, { val: 'LBS', text: 'Pounds (lbs)' }, { val: 'OZ', text: 'Ounces (oz)' }, { val: 'Each', text: 'Each (Single Unit)' }, { val: 'Custom_Vol', text: 'Custom Conversion to Volume' }],
-            each: [{ val: 'Each', text: 'Each (Single Unit)' }, { val: 'Custom_Weight_Vol', text: 'Custom Conversion to Wgt/Vol' }]
+            volume: [{ val: 'L', text: 'Liters (L)' }, { val: 'ML', text: 'Milliliters (ML)' }, { val: 'FL_OZ', text: 'Fluid Ounces (fl oz)' }, { val: 'Cups', text: 'Cups' }, { val: 'Tbsp', text: 'Tablespoons (tbsp)' }, { val: 'Tsp', text: 'Teaspoons (tsp)' }, { val: 'Each', text: 'Each (Single Unit)' }],
+            weight: [{ val: 'KG', text: 'Kilograms (KG)' }, { val: 'G', text: 'Grams (G)' }, { val: 'LBS', text: 'Pounds (lbs)' }, { val: 'OZ', text: 'Ounces (oz)' }, { val: 'Each', text: 'Each (Single Unit)' }],
+            each: [{ val: 'Each', text: 'Each (Single Unit)' }]
         };
 
-        unitMeasureSelect.addEventListener('change', function() { populateRecipeOptions(this.value); });
+        // --- CUSTOM UNIT CONVERSIONS (per-item weight<->volume<->each overrides) ---
+        // Each item may store: customConversions: [{ fromQty, fromUnit, toQty, toUnit }]
+        // These let an item's Recipe Measurement Unit dropdown offer a unit outside its
+        // normal received family (e.g. a KG-received flour that can also be measured in Cups).
+        const ALL_MEASURE_UNITS = { L:'Liters (L)', ML:'Milliliters (ML)', FL_OZ:'Fluid oz', Cups:'Cups', Tbsp:'Tbsp', Tsp:'Tsp', KG:'Kilograms (KG)', G:'Grams (G)', LBS:'Pounds (lbs)', OZ:'Ounces (oz)', Each:'Each' };
 
-        function populateRecipeOptions(selectedMeasure, presetValue = null, targetSelect = null) {
+        function getCustomConversionUnitLabel(unit) {
+            return ALL_MEASURE_UNITS[unit] || unit;
+        }
+
+        function populateCustomConversionUnitDropdowns(fromSelectId, toSelectId) {
+            const fromSel = document.getElementById(fromSelectId);
+            const toSel = document.getElementById(toSelectId);
+            if (!fromSel || !toSel) return;
+            const unitList = Object.keys(ALL_MEASURE_UNITS).filter(u => u !== 'Portion');
+            [fromSel, toSel].forEach(sel => {
+                sel.innerHTML = unitList.map(u => `<option value="${u}">${ALL_MEASURE_UNITS[u]}</option>`).join('');
+            });
+            fromSel.value = 'OZ';
+            toSel.value = 'Cups';
+        }
+
+        function renderCustomConversionList(conversions, listElId, isEditModal) {
+            const listEl = document.getElementById(listElId);
+            if (!listEl) return;
+            if (!Array.isArray(conversions) || conversions.length === 0) {
+                listEl.innerHTML = '<div style="font-size:0.82rem; color:#888;">No custom conversions added yet.</div>';
+                return;
+            }
+            listEl.innerHTML = conversions.map((c, idx) => `
+                <div style="display:flex; align-items:center; justify-content:space-between; background:#fff; border:1px solid var(--border-color); border-radius:4px; padding:6px 10px; margin-bottom:6px; font-size:0.85rem;">
+                    <span><strong>${c.fromQty} ${getCustomConversionUnitLabel(c.fromUnit)}</strong>&nbsp;=&nbsp;<strong>${c.toQty} ${getCustomConversionUnitLabel(c.toUnit)}</strong></span>
+                    <button type="button" class="mini-action-btn" style="background-color:var(--cancel);" onclick="removeCustomConversion(${idx}, ${isEditModal})">Remove</button>
+                </div>
+            `).join('');
+        }
+
+        function addCustomConversion(isEditModal = false) {
+            const prefix = isEditModal ? 'editModalCustomConv' : 'customConv';
+            const listId = isEditModal ? 'editModalCustomConversionList' : 'customConversionList';
+            const store = isEditModal ? editModalCustomConversions : newItemCustomConversions;
+
+            const fromQty = parseFloat(document.getElementById(`${prefix}FromQty`).value);
+            const fromUnit = document.getElementById(`${prefix}FromUnit`).value;
+            const toQty = parseFloat(document.getElementById(`${prefix}ToQty`).value);
+            const toUnit = document.getElementById(`${prefix}ToUnit`).value;
+
+            if (!fromQty || !toQty || fromQty <= 0 || toQty <= 0) {
+                alert('Please enter valid quantities on both sides of the conversion.');
+                return;
+            }
+            if (fromUnit === toUnit) {
+                alert('Please choose two different units to convert between.');
+                return;
+            }
+            const duplicate = store.some(c => c.fromUnit === fromUnit && c.toUnit === toUnit);
+            if (duplicate) {
+                alert('A conversion between these two units already exists for this item.');
+                return;
+            }
+
+            store.push({ fromQty, fromUnit, toQty, toUnit });
+            renderCustomConversionList(store, listId, isEditModal);
+
+            document.getElementById(`${prefix}FromQty`).value = '';
+            document.getElementById(`${prefix}ToQty`).value = '';
+
+            const unitMeasureVal = isEditModal ? document.getElementById('editModalUnitMeasure').value : document.getElementById('unitMeasure').value;
+            const recipeSel = isEditModal ? document.getElementById('editModalRecipeMeasure') : recipeMeasureSelect;
+            const currentRecipeVal = recipeSel.value;
+            populateRecipeOptions(unitMeasureVal, currentRecipeVal, recipeSel, store);
+        }
+
+        function removeCustomConversion(index, isEditModal) {
+            const store = isEditModal ? editModalCustomConversions : newItemCustomConversions;
+            store.splice(index, 1);
+            const listId = isEditModal ? 'editModalCustomConversionList' : 'customConversionList';
+            renderCustomConversionList(store, listId, isEditModal);
+
+            const unitMeasureVal = isEditModal ? document.getElementById('editModalUnitMeasure').value : document.getElementById('unitMeasure').value;
+            const recipeSel = isEditModal ? document.getElementById('editModalRecipeMeasure') : recipeMeasureSelect;
+            const currentRecipeVal = recipeSel.value;
+            populateRecipeOptions(unitMeasureVal, currentRecipeVal, recipeSel, store);
+        }
+
+        let newItemCustomConversions = [];
+        let editModalCustomConversions = [];
+
+        unitMeasureSelect.addEventListener('change', function() { populateRecipeOptions(this.value, null, recipeMeasureSelect, newItemCustomConversions); });
+
+        function populateRecipeOptions(selectedMeasure, presetValue = null, targetSelect = null, customConversions = []) {
             const sel = targetSelect || recipeMeasureSelect;
             sel.innerHTML = '';
             let optionsToLoad = [];
-            if (['L', 'ML', 'FL_OZ'].includes(selectedMeasure)) optionsToLoad = measureOptions.volume;
-            else if (['KG', 'G', 'LBS', 'OZ'].includes(selectedMeasure)) optionsToLoad = measureOptions.weight;
-            else optionsToLoad = measureOptions.each;
+            if (['L', 'ML', 'FL_OZ'].includes(selectedMeasure)) optionsToLoad = [...measureOptions.volume];
+            else if (['KG', 'G', 'LBS', 'OZ'].includes(selectedMeasure)) optionsToLoad = [...measureOptions.weight];
+            else optionsToLoad = [...measureOptions.each];
+
+            if (Array.isArray(customConversions)) {
+                customConversions.forEach(c => {
+                    [c.fromUnit, c.toUnit].forEach(u => {
+                        if (u !== selectedMeasure && !optionsToLoad.some(o => o.val === u)) {
+                            optionsToLoad.push({ val: u, text: `${getCustomConversionUnitLabel(u)} (Custom)` });
+                        }
+                    });
+                });
+            }
 
             optionsToLoad.forEach(opt => {
                 let newOption = document.createElement('option');
@@ -2264,21 +2362,58 @@ function executeBulkExport() {
         const UNIT_CONVERSIONS = { volume: { L:1000, ML:1, FL_OZ:29.5735, Cups:250, Tbsp:15, Tsp:5 }, weight: { KG:1000, G:1, LBS:453.592, OZ:28.3495 } };
         const UNIT_LABELS = { L:'Liters (L)', ML:'Milliliters (ML)', FL_OZ:'Fluid oz', Cups:'Cups', Tbsp:'Tbsp', Tsp:'Tsp', KG:'Kilograms (KG)', G:'Grams (G)', LBS:'Pounds (lbs)', OZ:'Ounces (oz)', Each:'Each', Portion:'Portion' };
         function getUnitFamily(unit) { if (UNIT_CONVERSIONS.volume[unit]) return 'volume'; if (UNIT_CONVERSIONS.weight[unit]) return 'weight'; if (unit === 'Each' || unit === 'Portion') return 'count'; return null; }
-        function canConvertUnits(fromUnit, toUnit) { const a=getUnitFamily(fromUnit), b=getUnitFamily(toUnit); return !!a && a === b && a !== 'count'; }
-        function getUnitRatio(fromUnit, toUnit) { if (fromUnit === toUnit) return 1; const f=getUnitFamily(fromUnit); if (!f || f !== getUnitFamily(toUnit) || f === 'count') return null; return UNIT_CONVERSIONS[f][toUnit] / UNIT_CONVERSIONS[f][fromUnit]; }
-        function convertCostPerUnit(costPerFromUnit, fromUnit, toUnit) { const ratio=getUnitRatio(fromUnit,toUnit); return ratio === null ? costPerFromUnit : costPerFromUnit * ratio; }
-        function convertQtyUnits(qty, fromUnit, toUnit) { if (fromUnit === toUnit) return qty; const ratio = getUnitRatio(toUnit, fromUnit); return ratio === null ? qty : qty * ratio; }
-        function getCompatibleUnits(unit) { const f=getUnitFamily(unit); if (f === 'volume') return Object.keys(UNIT_CONVERSIONS.volume); if (f === 'weight') return Object.keys(UNIT_CONVERSIONS.weight); return ['Each']; }
+
+        // Looks up a direct or inverse custom conversion ratio on an item, e.g. { fromQty:8, fromUnit:'OZ', toQty:1, toUnit:'Cups' }.
+        // Returns the multiplier to convert 1 unit of fromUnit into toUnit, or null if no matching custom rule exists.
+        function getCustomConversionRatio(item, fromUnit, toUnit) {
+            if (!item || !Array.isArray(item.customConversions)) return null;
+            for (const c of item.customConversions) {
+                if (c.fromUnit === fromUnit && c.toUnit === toUnit && c.fromQty > 0) {
+                    return c.toQty / c.fromQty;
+                }
+                if (c.fromUnit === toUnit && c.toUnit === fromUnit && c.toQty > 0) {
+                    return c.fromQty / c.toQty;
+                }
+            }
+            return null;
+        }
+        function canConvertUnits(fromUnit, toUnit, item = null) {
+            if (item && getCustomConversionRatio(item, fromUnit, toUnit) !== null) return true;
+            const a=getUnitFamily(fromUnit), b=getUnitFamily(toUnit); return !!a && a === b && a !== 'count';
+        }
+        function getUnitRatio(fromUnit, toUnit, item = null) {
+            if (fromUnit === toUnit) return 1;
+            if (item) {
+                const customRatio = getCustomConversionRatio(item, fromUnit, toUnit);
+                if (customRatio !== null) return customRatio;
+            }
+            const f=getUnitFamily(fromUnit); if (!f || f !== getUnitFamily(toUnit) || f === 'count') return null; return UNIT_CONVERSIONS[f][toUnit] / UNIT_CONVERSIONS[f][fromUnit];
+        }
+        function convertCostPerUnit(costPerFromUnit, fromUnit, toUnit, item = null) { const ratio=getUnitRatio(fromUnit,toUnit,item); return ratio === null ? costPerFromUnit : costPerFromUnit * ratio; }
+        function convertQtyUnits(qty, fromUnit, toUnit, item = null) { if (fromUnit === toUnit) return qty; const ratio = getUnitRatio(toUnit, fromUnit, item); return ratio === null ? qty : qty * ratio; }
+        function getCompatibleUnits(unit, item = null) {
+            const f=getUnitFamily(unit);
+            let units = [];
+            if (f === 'volume') units = Object.keys(UNIT_CONVERSIONS.volume);
+            else if (f === 'weight') units = Object.keys(UNIT_CONVERSIONS.weight);
+            else units = ['Each'];
+            if (item && Array.isArray(item.customConversions)) {
+                item.customConversions.forEach(c => {
+                    [c.fromUnit, c.toUnit].forEach(u => { if (!units.includes(u)) units.push(u); });
+                });
+            }
+            return units;
+        }
         function calculateUnitCost(item) {
             if (!item) return null;
             const cost = parseFloat(item.cost || 0), units = parseFloat(item.units || 0), totalYield = parseFloat(item.totalYield || 0);
             const yieldFactor = (parseFloat(item.yieldPct || 100) || 100) / 100;
             if (item.recipeMeasure === 'Each') return units > 0 ? cost / units : null;
             if (!totalYield || !item.unitMeasure || !item.recipeMeasure) return null;
-            if (item.unitMeasure !== item.recipeMeasure && !canConvertUnits(item.unitMeasure, item.recipeMeasure)) return null;
+            if (item.unitMeasure !== item.recipeMeasure && !canConvertUnits(item.unitMeasure, item.recipeMeasure, item)) return null;
             const usableYield = totalYield * yieldFactor;
             if (!usableYield) return null;
-            return convertCostPerUnit(cost / usableYield, item.unitMeasure, item.recipeMeasure);
+            return convertCostPerUnit(cost / usableYield, item.unitMeasure, item.recipeMeasure, item);
         }
 
 
@@ -2290,7 +2425,7 @@ function executeBulkExport() {
             if (!item) return 0;
             const baseCost = calculateUnitCost(item);
             if (baseCost === null) return 0;
-            return convertCostPerUnit(baseCost, item.recipeMeasure, selectedUnit || item.recipeMeasure);
+            return convertCostPerUnit(baseCost, item.recipeMeasure, selectedUnit || item.recipeMeasure, item);
         }
 
         function getLiveIngredientTotalCost(ing, seenPrepIds = new Set()) {
@@ -2926,7 +3061,8 @@ function executeBulkExport() {
                 recipeMeasure: document.getElementById('recipeMeasure').value,
                             totalYield: parseFloat(document.getElementById('unitsPerPack').value) * parseFloat(document.getElementById('unitSize').value),
             yieldPct: parseFloat(document.getElementById('itemYield').value) || 100,
-            excludeFromVariance: document.getElementById('itemExcludeFromVariance') ? document.getElementById('itemExcludeFromVariance').checked : false
+            excludeFromVariance: document.getElementById('itemExcludeFromVariance') ? document.getElementById('itemExcludeFromVariance').checked : false,
+            customConversions: [...newItemCustomConversions]
             };
 
             const existingIndex = itemDatabase.findIndex(item => item.id === id);
@@ -2935,6 +3071,7 @@ function executeBulkExport() {
 
             syncItemNameInRecipes(id, itemData.name);
 
+            newItemCustomConversions = [];
             cancelEdit();
             renderItemTable();
             renderPrepTable(document.getElementById('searchPrepInput')?.value?.toLowerCase() || '');
@@ -3032,7 +3169,9 @@ function executeBulkExport() {
             document.getElementById('editModalUnitSize').value = item.unitSize;
             document.getElementById('editModalUnitDescriptor').value = item.unitDescriptor || 'Unit';
             document.getElementById('editModalUnitMeasure').value = item.unitMeasure;
-            populateRecipeOptions(item.unitMeasure, item.recipeMeasure, document.getElementById('editModalRecipeMeasure'));
+            editModalCustomConversions = Array.isArray(item.customConversions) ? item.customConversions.map(c => ({ ...c })) : [];
+            renderCustomConversionList(editModalCustomConversions, 'editModalCustomConversionList', true);
+            populateRecipeOptions(item.unitMeasure, item.recipeMeasure, document.getElementById('editModalRecipeMeasure'), editModalCustomConversions);
             document.getElementById('editModalItemYield').value = item.yieldPct || 100;
             const excludeVarianceBox = document.getElementById('editModalItemExcludeFromVariance');
             if (excludeVarianceBox) excludeVarianceBox.checked = !!item.excludeFromVariance;
@@ -3057,7 +3196,7 @@ function executeBulkExport() {
                 }
             };
             document.getElementById('editModalUnitMeasure').onchange = function() {
-                populateRecipeOptions(this.value, null, document.getElementById('editModalRecipeMeasure'));
+                populateRecipeOptions(this.value, null, document.getElementById('editModalRecipeMeasure'), editModalCustomConversions);
                 updateEditModalPreview();
             };
             ['editModalItemName','editModalPackType','editModalUnitsPerPack','editModalUnitSize','editModalUnitDescriptor'].forEach(fid => {
@@ -3863,7 +4002,8 @@ function downloadPriceUpdateReviewCsv() {
                 recipeMeasure: document.getElementById('editModalRecipeMeasure').value,
                 totalYield: parseFloat(document.getElementById('editModalUnitsPerPack').value) * parseFloat(document.getElementById('editModalUnitSize').value),
                 yieldPct: parseFloat(document.getElementById('editModalItemYield').value) || 100,
-                excludeFromVariance: document.getElementById('editModalItemExcludeFromVariance') ? document.getElementById('editModalItemExcludeFromVariance').checked : false
+                excludeFromVariance: document.getElementById('editModalItemExcludeFromVariance') ? document.getElementById('editModalItemExcludeFromVariance').checked : false,
+                customConversions: [...editModalCustomConversions]
             };
 
             const existingIndex = itemDatabase.findIndex(item => item.id === id);
@@ -3871,6 +4011,7 @@ function downloadPriceUpdateReviewCsv() {
 
             syncItemNameInRecipes(id, itemData.name);
 
+            editModalCustomConversions = [];
             cancelEditItemModal();
             renderItemTable();
             renderPrepTable(document.getElementById('searchPrepInput')?.value?.toLowerCase() || '');
@@ -3892,6 +4033,8 @@ function downloadPriceUpdateReviewCsv() {
             const updatePriceBtn = document.getElementById('updatePriceBtn');
             if (updatePriceBtn) updatePriceBtn.style.display = 'none';
             recipeMeasureSelect.innerHTML = '<option value="" disabled selected>Select Received Measure first...</option>';
+            newItemCustomConversions = [];
+            renderCustomConversionList(newItemCustomConversions, 'customConversionList', false);
 			document.getElementById('itemYield').value = 100;
             const excludeVarianceReset = document.getElementById('itemExcludeFromVariance');
             if (excludeVarianceReset) excludeVarianceReset.checked = false;
@@ -4455,6 +4598,16 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                     if (volUnits.includes(item.unitMeasure)) compatibleUnits = volUnits.map(u => ({ val: u, label: volLabels[u] }));
                     else if (weightUnits.includes(item.unitMeasure)) compatibleUnits = weightUnits.map(u => ({ val: u, label: weightLabels[u] }));
                     else compatibleUnits = [{ val: 'Each', label: 'Each' }];
+                    // Append any item-specific custom conversion units (e.g. Cups for a KG-received flour)
+                    if (Array.isArray(item.customConversions)) {
+                        item.customConversions.forEach(c => {
+                            [c.fromUnit, c.toUnit].forEach(u => {
+                                if (u !== item.unitMeasure && !compatibleUnits.some(cu => cu.val === u)) {
+                                    compatibleUnits.push({ val: u, label: `${getCustomConversionUnitLabel(u)} (Custom)` });
+                                }
+                            });
+                        });
+                    }
                                         unitSelectHtml = `<select id="unit-${data.id}" style="width:120px; padding:4px; font-size:0.85rem;" onchange="updateModalCost('${data.id}')">
                         ${compatibleUnits.map(u => `<option value="${u.val}" ${u.val === item.recipeMeasure ? 'selected' : ''}>${u.label}</option>`).join('')}
                     </select>`;
@@ -4531,18 +4684,11 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                        if (type === 'raw') {
                 const item = itemDatabase.find(i => i.id === id);
                 const selectedUnit = document.getElementById(`unit-${id}`)?.value || item.recipeMeasure;
-                const volToML = { L:1000, ML:1, FL_OZ:29.5735, Cups:250, Tbsp:15, Tsp:5 };
-                const weightToG = { KG:1000, G:1, LBS:453.592, OZ:28.3495 };
                 let baseCost = calculateUnitCost(item);
                 if (baseCost === null) { alert("This item requires a Master Conversion before use."); return; }
                 // Recalculate cost for the chosen unit relative to the item's default recipe unit
-                if (volToML[item.recipeMeasure] && volToML[selectedUnit]) {
-                    costVal = baseCost * (volToML[selectedUnit] / volToML[item.recipeMeasure]);
-                } else if (weightToG[item.recipeMeasure] && weightToG[selectedUnit]) {
-                    costVal = baseCost * (weightToG[selectedUnit] / weightToG[item.recipeMeasure]);
-                } else {
-                    costVal = baseCost;
-                }
+                // (routes through getUnitRatio with the item so custom weight<->volume conversions apply)
+                costVal = convertCostPerUnit(baseCost, item.recipeMeasure, selectedUnit, item);
                 name = item.name; unit = selectedUnit;
             } else {
                 const prep = prepDatabase.find(p => p.id === id);
@@ -4918,6 +5064,9 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
             }
 
             populatePrepUsageUnit();
+            populateCustomConversionUnitDropdowns('customConvFromUnit', 'customConvToUnit');
+            populateCustomConversionUnitDropdowns('editModalCustomConvFromUnit', 'editModalCustomConvToUnit');
+            renderCustomConversionList(newItemCustomConversions, 'customConversionList', false);
         })();
 
 
