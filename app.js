@@ -2612,6 +2612,60 @@ function executeBulkExport() {
             }
         }
 
+        // Show every saved recipe across all properties that depends on a raw Item Master item.
+        function findRawItemPathsInIngredients(ingredients, targetItemId, property, seenPrepIds = new Set(), path = []) {
+            const matches = [];
+            (ingredients || []).forEach(ing => {
+                if (!ing) return;
+                if (ing.type === 'raw' && ing.itemId === targetItemId) {
+                    matches.push({ path: path.length ? path.join(' → ') : 'Direct ingredient', qty: ing.qty, unit: ing.unit });
+                    return;
+                }
+                if (ing.type !== 'prep' || seenPrepIds.has(ing.itemId)) return;
+                const prep = prepDatabase.find(p => p.id === ing.itemId && (!property || p.property === property));
+                if (!prep) return;
+                const nextSeen = new Set(seenPrepIds);
+                nextSeen.add(prep.id);
+                matches.push(...findRawItemPathsInIngredients(prep.ingredients, targetItemId, property, nextSeen, [...path, prep.name]));
+            });
+            return matches;
+        }
+
+        function getItemRecipeUsageAcrossProperties(itemId) {
+            const usage = [];
+            prepDatabase.forEach(prep => {
+                findRawItemPathsInIngredients(prep.ingredients, itemId, prep.property, new Set([prep.id])).forEach(match => usage.push({
+                    property: prep.property || 'Unassigned', recipeType: 'Prep Recipe', recipeName: prep.name || 'Unnamed Prep Recipe',
+                    recipeId: prep.id, path: match.path, qty: match.qty, unit: match.unit
+                }));
+            });
+            menuDatabase.forEach(menu => {
+                findRawItemPathsInIngredients(menu.ingredients, itemId, menu.property).forEach(match => usage.push({
+                    property: menu.property || 'Unassigned', recipeType: 'Menu Item Recipe', recipeName: menu.name || 'Unnamed Menu Item',
+                    recipeId: menu.id, path: match.path, qty: match.qty, unit: match.unit
+                }));
+            });
+            return usage.sort((a, b) => a.property.localeCompare(b.property) || a.recipeType.localeCompare(b.recipeType) || a.recipeName.localeCompare(b.recipeName) || a.path.localeCompare(b.path));
+        }
+
+        function openItemRecipeUsage(itemId) {
+            const item = itemDatabase.find(i => i.id === itemId);
+            if (!item) return;
+            const rows = getItemRecipeUsageAcrossProperties(itemId);
+            const title = document.getElementById('itemDrilldownTitle');
+            const body = document.getElementById('itemDrilldownBody');
+            if (title) title.textContent = `Recipe Usage for "${item.name}"`;
+            if (!rows.length) {
+                body.innerHTML = `<div class="recipe-meta-card" style="margin-bottom:15px;"><strong>No recipe usage found</strong>This item is not currently used in any saved Prep Recipe or Menu Item Recipe.</div>`;
+            } else {
+                const propertyCount = new Set(rows.map(r => r.property)).size;
+                const recipeCount = new Set(rows.map(r => `${r.recipeType}:${r.recipeId}`)).size;
+                const tableRows = rows.map(r => `<tr><td><strong>${escapeHtml(r.property)}</strong></td><td>${escapeHtml(r.recipeType)}</td><td><strong>${escapeHtml(r.recipeName)}</strong></td><td>${r.path === 'Direct ingredient' ? 'Direct ingredient' : `Via ${escapeHtml(r.path)}`}</td><td>${escapeHtml(r.qty)} ${escapeHtml(r.unit)}</td></tr>`).join('');
+                body.innerHTML = `<p style="color:#666;margin-top:-5px;">Includes direct use and menu items that depend on this item through a Prep Recipe.</p><div class="recipe-meta-grid"><div class="recipe-meta-card"><strong>Properties</strong>${propertyCount}</div><div class="recipe-meta-card"><strong>Recipes Affected</strong>${recipeCount}</div><div class="recipe-meta-card"><strong>Usage Lines</strong>${rows.length}</div><div class="recipe-meta-card"><strong>Current Recipe Unit</strong>${escapeHtml(item.recipeMeasure || '—')}</div></div><table><thead><tr><th>Property</th><th>Recipe Type</th><th>Recipe</th><th>Used</th><th>Qty / Unit</th></tr></thead><tbody>${tableRows}</tbody></table>`;
+            }
+            document.getElementById('itemDrilldownModal').style.display = 'block';
+        }
+
         function computeItemUsageBreakdown(itemId, property) {
             const rows = [];
             const menus = propertyMenuDatabase.filter(m => m.property === property);
@@ -4193,7 +4247,7 @@ function downloadPriceUpdateReviewCsv() {
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td><strong>${item.name}</strong>${item.excludeFromVariance ? ' <span style="font-size:0.7rem;color:#e74c3c;">(no variance)</span>' : ''}</td>
+                    <td><strong class="item-usage-link" onclick="openItemRecipeUsage('${item.id}')" title="Click to see every recipe and property where this item is used">${escapeHtml(item.name)}</strong>${item.excludeFromVariance ? ' <span style="font-size:0.7rem;color:#e74c3c;">(no variance)</span>' : ''}<br><span style="font-size:0.7rem;color:#7f8c8d;">Click item name for recipe usage</span></td>
                     <td>${skuDisplay}</td>
                     <td>${supplierDisplay}</td>
                     <td>${item.category || '—'}</td>
