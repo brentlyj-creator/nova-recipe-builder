@@ -2365,35 +2365,72 @@ function executeBulkExport() {
         function getUnitFamily(unit) { if (UNIT_CONVERSIONS.volume[unit]) return 'volume'; if (UNIT_CONVERSIONS.weight[unit]) return 'weight'; if (unit === 'Each' || unit === 'Portion') return 'count'; return null; }
 
         // Looks up a direct or inverse custom conversion ratio on an item, e.g. { fromQty:8, fromUnit:'OZ', toQty:1, toUnit:'Cups' }.
-        // Returns the COST-PER-UNIT multiplier from fromUnit to toUnit.
-        // Example: 0.715 LBS = 1 Each. A cost per LBS is multiplied by 0.715
-        // to obtain cost per Each; the inverse conversion uses 1 / 0.715.
+        // Returns the multiplier to convert 1 unit of fromUnit into toUnit, or null if no matching custom rule exists.
         function getCustomConversionRatio(item, fromUnit, toUnit) {
-            if (!item || !Array.isArray(item.customConversions)) return null;
-            for (const c of item.customConversions) {
-                const fromQty = parseFloat(c.fromQty);
-                const toQty = parseFloat(c.toQty);
-                if (!(fromQty > 0) || !(toQty > 0)) continue;
-                if (c.fromUnit === fromUnit && c.toUnit === toUnit) {
-                    return fromQty / toQty;
-                }
-                if (c.fromUnit === toUnit && c.toUnit === fromUnit) {
-                    return toQty / fromQty;
-                }
-            }
-            return null;
-        }
+		    if (!item || !Array.isArray(item.customConversions)) return null;
+		    for (const c of item.customConversions) {
+		        if (c.fromUnit === fromUnit && c.toUnit === toUnit && c.fromQty > 0) {
+		            return c.toQty / c.fromQty;
+		        }
+		        if (c.fromUnit === toUnit && c.toUnit === fromUnit && c.toQty > 0) {
+		            return c.fromQty / c.toQty;
+		        }
+		    }
+		    return null;
+		}
         function canConvertUnits(fromUnit, toUnit, item = null) {
             if (item && getCustomConversionRatio(item, fromUnit, toUnit) !== null) return true;
             const a=getUnitFamily(fromUnit), b=getUnitFamily(toUnit); return !!a && a === b && a !== 'count';
         }
+        // Returns the cost-per-unit multiplier between units. This supports a conversion
+        // path through the item's normal unit family and then through a custom rule.
+        // Example: OZ -> LBS (standard) -> Each (custom 0.715 LBS = 1 Each).
         function getUnitRatio(fromUnit, toUnit, item = null) {
             if (fromUnit === toUnit) return 1;
-            if (item) {
-                const customRatio = getCustomConversionRatio(item, fromUnit, toUnit);
-                if (customRatio !== null) return customRatio;
+
+            const graph = new Map();
+            const addEdge = (from, to, factor) => {
+                if (!from || !to || !Number.isFinite(factor) || factor <= 0) return;
+                if (!graph.has(from)) graph.set(from, []);
+                graph.get(from).push({ unit: to, factor });
+            };
+
+            // Standard weight and volume conversions. UNIT_CONVERSIONS stores the
+            // amount of the family's base unit represented by one selected unit.
+            Object.values(UNIT_CONVERSIONS).forEach(family => {
+                const units = Object.keys(family);
+                units.forEach(from => units.forEach(to => {
+                    if (from !== to) addEdge(from, to, family[to] / family[from]);
+                }));
+            });
+
+            // Item-specific bridges such as 0.715 LBS = 1 Each.
+            if (item && Array.isArray(item.customConversions)) {
+                item.customConversions.forEach(c => {
+                    const fromQty = parseFloat(c.fromQty);
+                    const toQty = parseFloat(c.toQty);
+                    if (!(fromQty > 0) || !(toQty > 0)) return;
+                    addEdge(c.fromUnit, c.toUnit, fromQty / toQty);
+                    addEdge(c.toUnit, c.fromUnit, toQty / fromQty);
+                });
             }
-            const f=getUnitFamily(fromUnit); if (!f || f !== getUnitFamily(toUnit) || f === 'count') return null; return UNIT_CONVERSIONS[f][toUnit] / UNIT_CONVERSIONS[f][fromUnit];
+
+            // Breadth-first search keeps the path short and allows standard + custom
+            // conversions to be chained without treating an unsupported unit as equal.
+            const queue = [{ unit: fromUnit, factor: 1 }];
+            const visited = new Set([fromUnit]);
+            while (queue.length) {
+                const current = queue.shift();
+                for (const edge of graph.get(current.unit) || []) {
+                    const nextFactor = current.factor * edge.factor;
+                    if (edge.unit === toUnit) return nextFactor;
+                    if (!visited.has(edge.unit)) {
+                        visited.add(edge.unit);
+                        queue.push({ unit: edge.unit, factor: nextFactor });
+                    }
+                }
+            }
+            return null;
         }
         function convertCostPerUnit(costPerFromUnit, fromUnit, toUnit, item = null) { const ratio=getUnitRatio(fromUnit,toUnit,item); return ratio === null ? costPerFromUnit : costPerFromUnit * ratio; }
         function convertQtyUnits(qty, fromUnit, toUnit, item = null) { if (fromUnit === toUnit) return qty; const ratio = getUnitRatio(toUnit, fromUnit, item); return ratio === null ? qty : qty * ratio; }
