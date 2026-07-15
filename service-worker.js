@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nova-recipe-builder-github-pages-v32';
+const CACHE_NAME = 'nova-recipe-builder-github-pages-v33';
 const BASE_PATH = '/nova-recipe-builder/';
 const APP_SHELL = [BASE_PATH, BASE_PATH + 'index.html', BASE_PATH + 'app.js', BASE_PATH + 'manifest.json', BASE_PATH + 'icon-192x192.png', BASE_PATH + 'icon-512x512.png'];
 self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL))); self.skipWaiting(); });
