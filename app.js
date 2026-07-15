@@ -2368,11 +2368,11 @@ function executeBulkExport() {
         function getCustomConversionRatio(item, fromUnit, toUnit) {
 		    if (!item || !Array.isArray(item.customConversions)) return null;
 		    for (const c of item.customConversions) {
-		        if (c.fromUnit === fromUnit && c.toUnit === toUnit && c.fromQty > 0) {
-		            return c.toQty / c.fromQty;
-		        }
-		        if (c.fromUnit === toUnit && c.toUnit === fromUnit && c.toQty > 0) {
+		        if (c.fromUnit === fromUnit && c.toUnit === toUnit && c.toQty > 0) {
 		            return c.fromQty / c.toQty;
+		        }
+		        if (c.fromUnit === toUnit && c.toUnit === fromUnit && c.fromQty > 0) {
+		            return c.toQty / c.fromQty;
 		        }
 		    }
 		    return null;
