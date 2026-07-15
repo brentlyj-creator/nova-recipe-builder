@@ -2366,17 +2366,17 @@ function executeBulkExport() {
         // Looks up a direct or inverse custom conversion ratio on an item, e.g. { fromQty:8, fromUnit:'OZ', toQty:1, toUnit:'Cups' }.
         // Returns the multiplier to convert 1 unit of fromUnit into toUnit, or null if no matching custom rule exists.
         function getCustomConversionRatio(item, fromUnit, toUnit) {
-            if (!item || !Array.isArray(item.customConversions)) return null;
-            for (const c of item.customConversions) {
-                if (c.fromUnit === fromUnit && c.toUnit === toUnit && c.fromQty > 0) {
-                    return c.toQty / c.fromQty;
-                }
-                if (c.fromUnit === toUnit && c.toUnit === fromUnit && c.toQty > 0) {
-                    return c.fromQty / c.toQty;
-                }
-            }
-            return null;
-        }
+		    if (!item || !Array.isArray(item.customConversions)) return null;
+		    for (const c of item.customConversions) {
+		        if (c.fromUnit === fromUnit && c.toUnit === toUnit && c.fromQty > 0) {
+		            return c.toQty / c.fromQty;
+		        }
+		        if (c.fromUnit === toUnit && c.toUnit === fromUnit && c.toQty > 0) {
+		            return c.fromQty / c.toQty;
+		        }
+		    }
+		    return null;
+		}
         function canConvertUnits(fromUnit, toUnit, item = null) {
             if (item && getCustomConversionRatio(item, fromUnit, toUnit) !== null) return true;
             const a=getUnitFamily(fromUnit), b=getUnitFamily(toUnit); return !!a && a === b && a !== 'count';
