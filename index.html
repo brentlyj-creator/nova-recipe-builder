@@ -560,10 +560,10 @@
                     <div class="form-section" style="background:#fff; margin-bottom:20px;">
                         <h3>Custom Unit Conversions <span style="font-size:0.75rem;color:#888;font-weight:normal;">(e.g. Cups for a KG-received item)</span></h3>
                         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
-                            <input type="number" step="0.01" id="customConvFromQty" placeholder="Qty" style="width:70px;">
+                            <input type="number" step="0.001" id="customConvFromQty" placeholder="Qty" style="width:70px;">
                             <select id="customConvFromUnit" style="width:140px;"></select>
                             <span>=</span>
-                            <input type="number" step="0.01" id="customConvToQty" placeholder="Qty" style="width:70px;">
+                            <input type="number" step="0.001" id="customConvToQty" placeholder="Qty" style="width:70px;">
                             <select id="customConvToUnit" style="width:140px;"></select>
                             <button type="button" class="action-btn" onclick="addCustomConversion(false)">Add Conversion</button>
                         </div>
@@ -1103,10 +1103,10 @@
 			            <div class="form-section" style="background:#fff;">
 			              <h3>Custom Unit Conversions <span style="font-size:0.75rem;color:#888;font-weight:normal;">(e.g. Cups for a KG-received item)</span></h3>
 			              <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
-			                <input type="number" step="0.01" id="editModalCustomConvFromQty" placeholder="Qty" style="width:70px;">
+			                <input type="number" step="0.001" id="editModalCustomConvFromQty" placeholder="Qty" style="width:70px;">
 			                <select id="editModalCustomConvFromUnit" style="width:140px;"></select>
 			                <span>=</span>
-			                <input type="number" step="0.01" id="editModalCustomConvToQty" placeholder="Qty" style="width:70px;">
+			                <input type="number" step="0.001" id="editModalCustomConvToQty" placeholder="Qty" style="width:70px;">
 			                <select id="editModalCustomConvToUnit" style="width:140px;"></select>
 			                <button type="button" class="action-btn" onclick="addCustomConversion(true)">Add Conversion</button>
 			              </div>
