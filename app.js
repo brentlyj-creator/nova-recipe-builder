@@ -2365,19 +2365,24 @@ function executeBulkExport() {
         function getUnitFamily(unit) { if (UNIT_CONVERSIONS.volume[unit]) return 'volume'; if (UNIT_CONVERSIONS.weight[unit]) return 'weight'; if (unit === 'Each' || unit === 'Portion') return 'count'; return null; }
 
         // Looks up a direct or inverse custom conversion ratio on an item, e.g. { fromQty:8, fromUnit:'OZ', toQty:1, toUnit:'Cups' }.
-        // Returns the multiplier to convert 1 unit of fromUnit into toUnit, or null if no matching custom rule exists.
+        // Returns the COST-PER-UNIT multiplier from fromUnit to toUnit.
+        // Example: 0.715 LBS = 1 Each. A cost per LBS is multiplied by 0.715
+        // to obtain cost per Each; the inverse conversion uses 1 / 0.715.
         function getCustomConversionRatio(item, fromUnit, toUnit) {
-		    if (!item || !Array.isArray(item.customConversions)) return null;
-		    for (const c of item.customConversions) {
-		        if (c.fromUnit === fromUnit && c.toUnit === toUnit && c.fromQty > 0) {
-		            return c.toQty / c.fromQty;
-		        }
-		        if (c.fromUnit === toUnit && c.toUnit === fromUnit && c.toQty > 0) {
-		            return c.fromQty / c.toQty;
-		        }
-		    }
-		    return null;
-		}
+            if (!item || !Array.isArray(item.customConversions)) return null;
+            for (const c of item.customConversions) {
+                const fromQty = parseFloat(c.fromQty);
+                const toQty = parseFloat(c.toQty);
+                if (!(fromQty > 0) || !(toQty > 0)) continue;
+                if (c.fromUnit === fromUnit && c.toUnit === toUnit) {
+                    return fromQty / toQty;
+                }
+                if (c.fromUnit === toUnit && c.toUnit === fromUnit) {
+                    return toQty / fromQty;
+                }
+            }
+            return null;
+        }
         function canConvertUnits(fromUnit, toUnit, item = null) {
             if (item && getCustomConversionRatio(item, fromUnit, toUnit) !== null) return true;
             const a=getUnitFamily(fromUnit), b=getUnitFamily(toUnit); return !!a && a === b && a !== 'count';
