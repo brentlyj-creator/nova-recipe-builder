@@ -20,6 +20,7 @@
         let lastRenderedVarianceRows = []; // Mirrors exactly what's on screen (after search + sort) so Export Report matches it
         let currentPrepIngredients = [];
         let currentMenuIngredients = [];
+        let currentEditMenuModalIngredients = [];
         let activeModalTarget = ''; 
         let duplicateTargetId = null;
         let duplicateTargetType = null;
@@ -4496,32 +4497,200 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
             });
         }
 
+        function ensureEditMenuItemModal() {
+            if (document.getElementById('editMenuItemModal')) return;
+            const modal = document.createElement('div');
+            modal.id = 'editMenuItemModal';
+            modal.className = 'modal';
+            modal.innerHTML = `
+                <div class="modal-content" style="width: 86%; max-width: 1050px; margin: 3% auto;">
+                    <div class="modal-header">
+                        <h2>Edit Menu Item Recipe</h2>
+                        <span class="close" onclick="cancelEditMenuModal()">&times;</span>
+                    </div>
+                    <input type="hidden" id="editMenuModalId" value="">
+                    <div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <div class="form-group">
+                            <label>Menu Item Name</label>
+                            <input type="text" id="editMenuModalName" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Menu Category</label>
+                            <select id="editMenuModalCategory" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Target Selling Price ($)</label>
+                            <input type="number" step="0.01" id="editMenuModalPrice" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Cook Time</label>
+                            <input type="text" id="editMenuModalCookTime" placeholder="e.g. 12 mins">
+                        </div>
+                    </div>
+                    <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 20px 0;">
+                    <h3>Build Steps & Ingredients</h3>
+                    <table>
+                        <thead><tr><th>Item / Prep Recipe</th><th>Qty</th><th>Unit</th><th>Cost</th><th>Action</th></tr></thead>
+                        <tbody id="editMenuModalIngredientsBody">
+                            <tr><td colspan="5" style="text-align:center;color:#777;">No ingredients added yet.</td></tr>
+                        </tbody>
+                    </table>
+                    <div class="btn-group" style="margin-bottom: 25px;">
+                        <button type="button" class="btn-submit" onclick="openIngredientModal('editMenuModal')" style="width:auto; background-color:#34495e;">+ Add Ingredient</button>
+                    </div>
+                    <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 20px 0;">
+                    <div style="display:grid; grid-template-columns:2fr 1fr; gap:20px;">
+                        <div>
+                            <h3 style="margin-top:0;">Steps of Preparation</h3>
+                            <div class="rte-container">
+                                <div class="rte-toolbar">
+                                    <button type="button" onclick="rteCmd('bold','editMenuModalSteps')"><b>B</b></button>
+                                    <button type="button" onclick="rteCmd('italic','editMenuModalSteps')"><i>I</i></button>
+                                    <button type="button" onclick="rteCmd('underline','editMenuModalSteps')"><u>U</u></button>
+                                    <span style="width:1px; background:#ccc; align-self:stretch; margin:0 2px;"></span>
+                                    <button type="button" onclick="rteCmd('insertUnorderedList','editMenuModalSteps')">&#8226; Bullet</button>
+                                    <button type="button" onclick="rteCmd('insertOrderedList','editMenuModalSteps')">1. Number</button>
+                                    <span style="width:1px; background:#ccc; align-self:stretch; margin:0 2px;"></span>
+                                    <button type="button" onclick="rteCmd('indent','editMenuModalSteps')" title="Indent (Tab)">&#8677; Indent</button>
+                                    <button type="button" onclick="rteCmd('outdent','editMenuModalSteps')" title="Outdent (Shift+Tab)">&#8676; Outdent</button>
+                                </div>
+                                <div id="editMenuModalSteps" class="rte-editor" contenteditable="true" placeholder="Enter preparation steps here..."></div>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 style="margin-top:0;">Tips / Notes</h3>
+                            <div class="rte-container">
+                                <div class="rte-toolbar">
+                                    <button type="button" onclick="rteCmd('bold','editMenuModalTipsNotes')"><b>B</b></button>
+                                    <button type="button" onclick="rteCmd('italic','editMenuModalTipsNotes')"><i>I</i></button>
+                                    <button type="button" onclick="rteCmd('underline','editMenuModalTipsNotes')"><u>U</u></button>
+                                    <span style="width:1px; background:#ccc; align-self:stretch; margin:0 2px;"></span>
+                                    <button type="button" onclick="rteCmd('insertUnorderedList','editMenuModalTipsNotes')">&#8226; Bullet</button>
+                                    <button type="button" onclick="rteCmd('insertOrderedList','editMenuModalTipsNotes')">1. Number</button>
+                                </div>
+                                <div id="editMenuModalTipsNotes" class="rte-editor" contenteditable="true" placeholder="Enter tips, notes, or allergen information here..."></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="btn-group" style="margin-top: 15px;">
+                        <button type="button" class="btn-submit" onclick="saveMenuFromModal()">Save Changes</button>
+                        <button type="button" class="btn-cancel" style="display:block;" onclick="cancelEditMenuModal()">Cancel</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        function populateEditMenuModalCategoryDropdown(selectedCategory = '') {
+            ensureEditMenuItemModal();
+            const sel = document.getElementById('editMenuModalCategory');
+            if (!sel) return;
+            sel.innerHTML = '<option value="" disabled>Select Category...</option>';
+            [...menuItemCategoryDatabase].sort((a, b) => a.localeCompare(b)).forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat;
+                opt.textContent = cat;
+                sel.appendChild(opt);
+            });
+            if (selectedCategory && !menuItemCategoryDatabase.includes(selectedCategory)) {
+                const opt = document.createElement('option');
+                opt.value = selectedCategory;
+                opt.textContent = selectedCategory;
+                sel.appendChild(opt);
+            }
+            sel.value = selectedCategory || '';
+        }
+
+        function updateEditMenuModalIngredientTable() {
+            const tbody = document.getElementById('editMenuModalIngredientsBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            if (currentEditMenuModalIngredients.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#777;">No ingredients added yet.</td></tr>`;
+                return;
+            }
+            let totalCost = 0;
+            currentEditMenuModalIngredients.forEach((ing, index) => {
+                const lineCost = getLiveIngredientTotalCost(ing);
+                const isCredit = parseFloat(ing.qty) < 0;
+                if (!isCredit) totalCost += lineCost;
+                tbody.innerHTML += `<tr${isCredit ? ' style="background-color:#fdecea;"' : ''}><td><strong>${escapeHtml(ing.name)}</strong>${isCredit ? ' <span style="font-size:0.72rem;color:#e74c3c;font-weight:bold;">(credit)</span>' : ''}</td><td>${ing.qty}</td><td>${escapeHtml(ing.unit)}</td><td style="${isCredit ? 'color:#e74c3c;font-weight:bold;' : ''}">${formatCurrency(lineCost)}</td>
+                <td>
+                    <button type="button" class="action-btn" style="background-color: var(--warning);" onclick="editIngredientQuantity('editMenuModal', ${index})">Edit</button>
+                    <button type="button" class="action-btn" style="background-color: var(--cancel);" onclick="removeIngredient('editMenuModal', ${index})">X</button>
+                </td></tr>`;
+            });
+            tbody.innerHTML += `<tr style="background-color:#e9ecef;"><td colspan="3" style="text-align:right;font-weight:bold;">Total Plate Cost:</td><td colspan="2" style="font-weight:bold;color:var(--primary);">${formatCurrency(totalCost)}</td></tr>`;
+        }
+
         function editMenu(id) {
             const menu = menuDatabase.find(m => m.id === id);
-            if(!menu) return;
-            document.getElementById('editMenuId').value = menu.id;
-            document.getElementById('menuItemName').value = menu.name;
-            document.getElementById('menuCategory').value = menu.category;
-            document.getElementById('menuPrice').value = menu.targetPrice;
-			document.getElementById('cookTime').value = menu.cookTime || '';
-            currentMenuIngredients = [...menu.ingredients];
-            updateMenuIngredientTable();
-            document.getElementById('menuSteps').innerHTML = menu.steps || '';
-            document.getElementById('menuTipsNotes').innerHTML = menu.tipsNotes || '';
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-			document.getElementById('menuCancelBtn').style.display = 'block';
+            if (!menu) return;
+            ensureEditMenuItemModal();
+            populateEditMenuModalCategoryDropdown(menu.category || '');
+            document.getElementById('editMenuModalId').value = menu.id;
+            document.getElementById('editMenuModalName').value = menu.name || '';
+            document.getElementById('editMenuModalPrice').value = menu.targetPrice || 0;
+            document.getElementById('editMenuModalCookTime').value = menu.cookTime || '';
+            currentEditMenuModalIngredients = Array.isArray(menu.ingredients) ? menu.ingredients.map(ing => ({ ...ing })) : [];
+            updateEditMenuModalIngredientTable();
+            document.getElementById('editMenuModalSteps').innerHTML = menu.steps || '';
+            document.getElementById('editMenuModalTipsNotes').innerHTML = menu.tipsNotes || '';
+            document.getElementById('editMenuItemModal').style.display = 'block';
         }
-		
-		function cancelMenuEdit() {
-		    document.getElementById('menuForm').reset();
-		    document.getElementById('editMenuId').value = '';
-		    currentMenuIngredients = [];
-		    updateMenuIngredientTable();
-		    document.getElementById('menuSteps').innerHTML = '';
-		    document.getElementById('menuTipsNotes').innerHTML = '';
-		    document.getElementById('menuCancelBtn').style.display = 'none';
-}
-		
+
+        function cancelEditMenuModal() {
+            const modal = document.getElementById('editMenuItemModal');
+            if (modal) modal.style.display = 'none';
+            currentEditMenuModalIngredients = [];
+        }
+
+        function saveMenuFromModal() {
+            const id = document.getElementById('editMenuModalId')?.value || '';
+            if (!id) return;
+            if (currentEditMenuModalIngredients.length === 0) {
+                alert('Please add at least one ingredient to the menu item.');
+                return;
+            }
+            const existingIndex = menuDatabase.findIndex(m => m.id === id);
+            const existing = existingIndex > -1 ? menuDatabase[existingIndex] : null;
+            if (!existing) return;
+            const name = plainText(document.getElementById('editMenuModalName').value);
+            const category = document.getElementById('editMenuModalCategory').value;
+            const targetPrice = parseFloat(document.getElementById('editMenuModalPrice').value);
+            if (!name) { alert('Please enter a menu item name.'); return; }
+            if (!category) { alert('Please select a menu category.'); return; }
+            if (!Number.isFinite(targetPrice) || targetPrice < 0) { alert('Please enter a valid target selling price.'); return; }
+            const ingredients = currentEditMenuModalIngredients.map(ing => ({ ...ing }));
+            const foodCost = ingredients.reduce((sum, ing) => sum + getLiveIngredientTotalCost(ing), 0);
+            const costPercentage = targetPrice > 0 ? (foodCost / targetPrice) * 100 : 0;
+            const menuData = {
+                ...existing,
+                id,
+                property: existing.property || currentProperty,
+                name,
+                category,
+                targetPrice,
+                foodCost,
+                costPercentage,
+                steps: cleanRichText(document.getElementById('editMenuModalSteps').innerHTML),
+                tipsNotes: cleanRichText(document.getElementById('editMenuModalTipsNotes').innerHTML),
+                cookTime: plainText(document.getElementById('editMenuModalCookTime').value),
+                ingredients
+            };
+            menuDatabase[existingIndex] = menuData;
+            cancelEditMenuModal();
+            updateMenuCategoryFilterOptions();
+            renderMenuTable();
+            renderPropertyTable();
+            renderCloneLists();
+            renderPropertyMenus();
+            renderSelectedPropertyMenuDetails();
+            renderVarianceTable();
+            saveAllDataToBrowser(false);
+            showToast(`${menuData.name} updated successfully.`, 'success');
+        }
+
         function deleteMenuItem(id) {
 		    const menu = menuDatabase.find(m => m.id === id);
 		    if (!menu) return;
@@ -4558,6 +4727,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
         window.onclick = function(event) { 
             if (event.target == document.getElementById('ingredientModal')) closeModal('ingredientModal'); 
             if (event.target == document.getElementById('duplicateModal')) closeModal('duplicateModal'); 
+            if (event.target == document.getElementById('editMenuItemModal')) cancelEditMenuModal(); 
         }
         
         document.getElementById('modalSearch').addEventListener('keyup', debounce(function() { renderModalTable(this.value.toLowerCase()); }, 200));
@@ -4638,7 +4808,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                     costDisplay = `$${initCost.toFixed(4)}`;
                 }
 
-                                const activeIngredients = activeModalTarget === 'prep' ? currentPrepIngredients : currentMenuIngredients;
+                                const activeIngredients = activeModalTarget === 'prep' ? currentPrepIngredients : (activeModalTarget === 'editMenuModal' ? currentEditMenuModalIngredients : currentMenuIngredients);
                                 const alreadyAdded = activeIngredients.some(ing => ing.itemId === data.id || ing.id === data.id);
                 const checkmark = alreadyAdded ? ' <span style="color: #18bc9c; font-weight:bold;" title="Already in this recipe">✔</span>' : '';
 
@@ -4711,6 +4881,8 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                 currentPrepIngredients.push(ingredientEntry); updatePrepIngredientTable();
             } else if (activeModalTarget === 'menu') {
                 currentMenuIngredients.push(ingredientEntry); updateMenuIngredientTable();
+            } else if (activeModalTarget === 'editMenuModal') {
+                currentEditMenuModalIngredients.push(ingredientEntry); updateEditMenuModalIngredientTable();
             }
 
             qtyInput.value = ''; 
@@ -4767,7 +4939,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
         }
 
         function editIngredientQuantity(target, index) {
-            const arr = target === 'prep' ? currentPrepIngredients : currentMenuIngredients;
+            const arr = target === 'prep' ? currentPrepIngredients : (target === 'editMenuModal' ? currentEditMenuModalIngredients : currentMenuIngredients);
             const ing = arr[index];
             if (!ing) return;
 
@@ -4792,7 +4964,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
 
         function saveEditIngredientModal() {
             if (editIngredientModalTarget === null || editIngredientModalIndex === null) return;
-            const arr = editIngredientModalTarget === 'prep' ? currentPrepIngredients : currentMenuIngredients;
+            const arr = editIngredientModalTarget === 'prep' ? currentPrepIngredients : (editIngredientModalTarget === 'editMenuModal' ? currentEditMenuModalIngredients : currentMenuIngredients);
             const ing = arr[editIngredientModalIndex];
             if (!ing) return;
 
@@ -4809,6 +4981,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
             ing.totalCost = getLiveIngredientTotalCost(ing);
 
             if (editIngredientModalTarget === 'prep') updatePrepIngredientTable();
+            else if (editIngredientModalTarget === 'editMenuModal') updateEditMenuModalIngredientTable();
             else updateMenuIngredientTable();
 
             cancelEditIngredientModal();
@@ -4858,7 +5031,8 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
         }
 
         function removeIngredient(target, index) {
-            if (target === 'prep') { currentPrepIngredients.splice(index, 1); updatePrepIngredientTable(); } 
+            if (target === 'prep') { currentPrepIngredients.splice(index, 1); updatePrepIngredientTable(); }
+            else if (target === 'editMenuModal') { currentEditMenuModalIngredients.splice(index, 1); updateEditMenuModalIngredientTable(); }
             else { currentMenuIngredients.splice(index, 1); updateMenuIngredientTable(); }
         }
 
