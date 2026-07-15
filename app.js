@@ -2368,11 +2368,11 @@ function executeBulkExport() {
         function getCustomConversionRatio(item, fromUnit, toUnit) {
 		    if (!item || !Array.isArray(item.customConversions)) return null;
 		    for (const c of item.customConversions) {
-		        if (c.fromUnit === fromUnit && c.toUnit === toUnit && c.toQty > 0) {
-		            return c.fromQty / c.toQty;
-		        }
-		        if (c.fromUnit === toUnit && c.toUnit === fromUnit && c.fromQty > 0) {
+		        if (c.fromUnit === fromUnit && c.toUnit === toUnit && c.fromQty > 0) {
 		            return c.toQty / c.fromQty;
+		        }
+		        if (c.fromUnit === toUnit && c.toUnit === fromUnit && c.toQty > 0) {
+		            return c.fromQty / c.toQty;
 		        }
 		    }
 		    return null;
@@ -4727,18 +4727,91 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
         }
 
         // --- Edit Ingredient Amounts ---
+        let editIngredientModalTarget = null;
+        let editIngredientModalIndex = null;
+
+        function buildEditIngredientUnitOptions(ing) {
+            const volUnits = ['L','ML','FL_OZ','Cups','Tbsp','Tsp'];
+            const weightUnits = ['KG','G','LBS','OZ'];
+            const volLabels = { L:'Liters (L)', ML:'Milliliters (ML)', FL_OZ:'Fluid oz', Cups:'Cups', Tbsp:'Tbsp', Tsp:'Tsp' };
+            const weightLabels = { KG:'Kilograms (KG)', G:'Grams (G)', LBS:'Pounds (lbs)', OZ:'Ounces (oz)' };
+            let options = [];
+
+            if (ing.type === 'raw') {
+                const item = itemDatabase.find(i => i.id === ing.itemId);
+                if (!item) return [{ val: ing.unit, label: ing.unit }];
+                if (volUnits.includes(item.unitMeasure)) options = volUnits.map(u => ({ val: u, label: volLabels[u] }));
+                else if (weightUnits.includes(item.unitMeasure)) options = weightUnits.map(u => ({ val: u, label: weightLabels[u] }));
+                else options = [{ val: 'Each', label: 'Each' }];
+                if (Array.isArray(item.customConversions)) {
+                    item.customConversions.forEach(c => {
+                        [c.fromUnit, c.toUnit].forEach(u => {
+                            if (u !== item.unitMeasure && !options.some(o => o.val === u)) {
+                                options.push({ val: u, label: `${getCustomConversionUnitLabel(u)} (Custom)` });
+                            }
+                        });
+                    });
+                }
+            } else if (ing.type === 'prep') {
+                const prep = prepDatabase.find(p => p.id === ing.itemId);
+                if (!prep) return [{ val: ing.unit, label: ing.unit }];
+                if (volUnits.includes(prep.yieldUnit)) options = volUnits.map(u => ({ val: u, label: volLabels[u] }));
+                else if (weightUnits.includes(prep.yieldUnit)) options = weightUnits.map(u => ({ val: u, label: weightLabels[u] }));
+                else options = [{ val: 'Portion', label: 'Portion' }];
+            } else {
+                options = [{ val: ing.unit, label: ing.unit }];
+            }
+
+            if (!options.some(o => o.val === ing.unit)) options.push({ val: ing.unit, label: ing.unit });
+            return options;
+        }
+
         function editIngredientQuantity(target, index) {
             const arr = target === 'prep' ? currentPrepIngredients : currentMenuIngredients;
             const ing = arr[index];
-            const newQty = parseFloat(prompt(`Enter new quantity for ${ing.name} (Current: ${ing.qty} ${ing.unit}). Use a negative number to credit/remove this ingredient:`, ing.qty));
+            if (!ing) return;
 
-            if (!Number.isNaN(newQty) && newQty !== 0) {
-                ing.qty = newQty;
-                ing.totalCost = getLiveIngredientTotalCost(ing);
-                
-                if (target === 'prep') updatePrepIngredientTable();
-                else updateMenuIngredientTable();
+            editIngredientModalTarget = target;
+            editIngredientModalIndex = index;
+
+            document.getElementById('editIngredientModalName').textContent = ing.name;
+            document.getElementById('editIngredientModalQty').value = ing.qty;
+
+            const unitSel = document.getElementById('editIngredientModalUnit');
+            const options = buildEditIngredientUnitOptions(ing);
+            unitSel.innerHTML = options.map(o => `<option value="${o.val}" ${o.val === ing.unit ? 'selected' : ''}>${o.label}</option>`).join('');
+
+            document.getElementById('editIngredientModal').style.display = 'block';
+        }
+
+        function cancelEditIngredientModal() {
+            document.getElementById('editIngredientModal').style.display = 'none';
+            editIngredientModalTarget = null;
+            editIngredientModalIndex = null;
+        }
+
+        function saveEditIngredientModal() {
+            if (editIngredientModalTarget === null || editIngredientModalIndex === null) return;
+            const arr = editIngredientModalTarget === 'prep' ? currentPrepIngredients : currentMenuIngredients;
+            const ing = arr[editIngredientModalIndex];
+            if (!ing) return;
+
+            const newQty = parseFloat(document.getElementById('editIngredientModalQty').value);
+            const newUnit = document.getElementById('editIngredientModalUnit').value;
+
+            if (Number.isNaN(newQty) || newQty === 0) {
+                alert('Please enter a valid, non-zero quantity.');
+                return;
             }
+
+            ing.qty = newQty;
+            ing.unit = newUnit;
+            ing.totalCost = getLiveIngredientTotalCost(ing);
+
+            if (editIngredientModalTarget === 'prep') updatePrepIngredientTable();
+            else updateMenuIngredientTable();
+
+            cancelEditIngredientModal();
         }
 
         function formatCurrency(value) {
