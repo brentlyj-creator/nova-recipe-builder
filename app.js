@@ -73,7 +73,7 @@
         function evaluateRecipeFit(recipe,type='prep',force=false){
             if(!recipe)return null; const key=`${type}:${recipe.id}`; if(!force&&exportFitCache.has(key))return exportFitCache.get(key);
             const menu=type==='menu', ing=ingredientHtml(recipe,menu), steps=normalizeExportHtml(recipe.steps||''), tips=menu?normalizeExportHtml(recipe.tipsNotes||''):'';
-            const ingOne=fitFont(ing,menu?269:230,menu?288:600,9,7,true);
+            const ingOne=fitFont(ing,menu?269:230,menu?192:600,9,7,true);
             let pages=1; if(!ingOne.fits){ const perPage=Math.max(1,Math.floor((menu?360:650)*EXPORT_FIT.safety/Math.max(14,ingOne.height/Math.max(1,(menu?getNonCreditIngredients(recipe):(recipe.ingredients||[])).length)))); pages=Math.max(2,Math.ceil(Math.max(1,(menu?getNonCreditIngredients(recipe):(recipe.ingredients||[])).length)/perPage)); }
             const prepHeight=menu?312:480; const prepAvailable=prepHeight*(pages>1?Math.min(pages,EXPORT_FIT.maxPages):1);
             let stepFit=fitFont(steps,menu?269:620,prepAvailable,9,7,false);
@@ -4454,10 +4454,11 @@ function downloadPriceUpdateReviewCsv() {
                     viewPrepRecipe(prep.id);
                 };
                 row.innerHTML = `
-                    <td><strong>${prep.name}</strong>${prep.category ? ` <span style=\"font-size:0.72rem;color:#18bc9c;font-weight:bold;\">[${escapeHtml(prep.category)}]</span>` : ''}${prep.includeInExport === false ? ' <span style=\"font-size:0.7rem;color:#e74c3c;\">(excluded from export)</span>' : ''}${exportStatusHtml(evaluateRecipeFit(prep,'prep'))}</td>
+                    <td><strong>${prep.name}</strong>${prep.category ? ` <span style=\"font-size:0.72rem;color:#18bc9c;font-weight:bold;\">[${escapeHtml(prep.category)}]</span>` : ''}${prep.includeInExport === false ? ' <span style=\"font-size:0.7rem;color:#e74c3c;\">(excluded from export)</span>' : ''}</td>
                     <td>${prep.yieldAmount} ${prep.yieldUnit}</td>
                     <td>${shelfLifeDisplay}</td>
                     <td style="color: #18bc9c; font-weight: bold;">$${calculatePrepCostPerUnit(prep).toFixed(4)} / ${prep.yieldUnit === 'Each' ? 'Portion' : prep.yieldUnit}</td>
+                    <td>${exportStatusHtml(evaluateRecipeFit(prep,'prep'))}</td>
                     <td>
                         <button class="action-btn" onclick="printSinglePrepRecipe('${prep.id}')">🖨 Print</button>
                         <button class="action-btn" onclick="editPrep('${prep.id}')">Edit</button>
@@ -4626,11 +4627,12 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                     viewMenuRecipe(menu.id);
                 };
                 row.innerHTML = `
-                    <td><strong>${menu.name}</strong>${exportStatusHtml(evaluateRecipeFit(menu,'menu'))}</td>
+                    <td><strong>${menu.name}</strong></td>
                     <td>${menu.category}</td>
                     <td>$${liveFoodCost.toFixed(2)}</td>
                     <td>$${menu.targetPrice.toFixed(2)}</td>
                     <td style="color: ${costColor}; font-weight: bold;">${liveCostPercentage.toFixed(1)}%</td>
+                    <td>${exportStatusHtml(evaluateRecipeFit(menu,'menu'))}</td>
                                        <td>
                         <button class="action-btn" onclick="editMenu('${menu.id}')">Edit</button>
                         <button class="action-btn" style="background-color: var(--info);" onclick="openSingleDuplicateModal('${menu.id}', 'menu')">Copy</button>
@@ -4700,6 +4702,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                                 </div>
                                 <div id="editMenuModalSteps" class="rte-editor" contenteditable="true" placeholder="Enter preparation steps here..."></div>
                             </div>
+                            <div id="editMenuModalStepsFitMeter" class="export-fit-meter">Export Fit: checking...</div>
                         </div>
                         <div>
                             <h3 style="margin-top:0;">Tips / Notes</h3>
@@ -4714,8 +4717,10 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                                 </div>
                                 <div id="editMenuModalTipsNotes" class="rte-editor" contenteditable="true" placeholder="Enter tips, notes, or allergen information here..."></div>
                             </div>
+                            <div id="editMenuModalTipsFitMeter" class="export-fit-meter">Export Fit: checking...</div>
                         </div>
                     </div>
+                    <div id="editMenuModalExportFitSummary" class="export-fit-summary"></div>
                     <div class="btn-group" style="margin-top: 15px;">
                         <button type="button" class="btn-submit" onclick="saveMenuFromModal()">Save Changes</button>
                         <button type="button" class="btn-cancel" style="display:block;" onclick="cancelEditMenuModal()">Cancel</button>
@@ -4723,7 +4728,27 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                 </div>
             `;
             document.body.appendChild(modal);
+            document.getElementById('editMenuModalSteps')?.addEventListener('input',debouncedEditMenuModalFit);
+            document.getElementById('editMenuModalTipsNotes')?.addEventListener('input',debouncedEditMenuModalFit);
         }
+
+        function updateEditMenuModalExportFit() {
+            const stepsEl = document.getElementById('editMenuModalSteps');
+            const tipsEl = document.getElementById('editMenuModalTipsNotes');
+            if (!stepsEl || !tipsEl) return;
+            const recipe = { id:'__editing_modal_menu', ingredients:currentEditMenuModalIngredients, steps:stepsEl.innerHTML || '', tipsNotes:tipsEl.innerHTML || '' };
+            exportFitCache.delete('menu:' + recipe.id);
+            const f = evaluateRecipeFit(recipe,'menu',true);
+            paintMeter('editMenuModalStepsFitMeter',meterText(f,'steps'),!f.steps.fits?'fit-over':(f.steps.fontPt<9||f.pages>=4?'fit-warn':'fit-ok'));
+            paintMeter('editMenuModalTipsFitMeter',meterText(f,'tips'),!f.tips.fits?'fit-over':(f.tips.fontPt<9?'fit-warn':'fit-ok'));
+            const sum=document.getElementById('editMenuModalExportFitSummary');
+            if(sum){
+                if(f.overflow){sum.className='export-fit-summary fit-over';sum.textContent='⚠ Text Overflow — '+f.overflowBlocks.join(' and ')+'. The recipe can be saved, but bulk export will skip it until adjusted.';}
+                else if(f.pages>=4){sum.className='export-fit-summary fit-warn';sum.textContent='4-page layout — Review recommended. This recipe fits but has reached the maximum recommended length.';}
+                else{sum.className='export-fit-summary';sum.textContent='';}
+            }
+        }
+        const debouncedEditMenuModalFit = debounce(updateEditMenuModalExportFit,180);
 
         function populateEditMenuModalCategoryDropdown(selectedCategory = '') {
             ensureEditMenuItemModal();
@@ -4765,6 +4790,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                 </td></tr>`;
             });
             tbody.innerHTML += `<tr style="background-color:#e9ecef;"><td colspan="3" style="text-align:right;font-weight:bold;">Total Plate Cost:</td><td colspan="2" style="font-weight:bold;color:var(--primary);">${formatCurrency(totalCost)}</td></tr>`;
+            updateEditMenuModalExportFit();
         }
 
         function editMenu(id) {
@@ -4781,6 +4807,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
             document.getElementById('editMenuModalSteps').innerHTML = menu.steps || '';
             document.getElementById('editMenuModalTipsNotes').innerHTML = menu.tipsNotes || '';
             document.getElementById('editMenuItemModal').style.display = 'block';
+            updateEditMenuModalExportFit();
         }
 
         function cancelEditMenuModal() {
@@ -5618,15 +5645,38 @@ function executeBulkMenuPptxExport() {
     if(skipped.length) showOverflowReport(skipped);
 }
 
+function getPptxPreparationLines(html) {
+    const t=document.createElement('template');
+    t.innerHTML=normalizeExportHtml(html||'');
+    const lines=[];
+    const pushText=(text,prefix='')=>{const clean=String(text||'').replace(/\s+/g,' ').trim();if(clean)lines.push(prefix+clean);};
+    [...t.content.childNodes].forEach(node=>{
+        if(node.nodeType===Node.TEXT_NODE){pushText(node.textContent);return;}
+        if(node.nodeType!==Node.ELEMENT_NODE)return;
+        if(node.tagName==='OL'){[...node.children].forEach((li,i)=>pushText(li.textContent,(i+1)+'. '));}
+        else if(node.tagName==='UL'){[...node.children].forEach(li=>pushText(li.textContent,'• '));}
+        else if(node.tagName==='LI'){pushText(node.textContent);}
+        else{pushText(node.textContent);}
+    });
+    if(!lines.length){const plain=richTextToPlainText(html,{dedupeAdjacentLines:false});plain.split(/\n+/).forEach(x=>pushText(x));}
+    return lines;
+}
+function splitPptxLinesSequential(lines,pages){
+    const chunks=Array.from({length:Math.max(1,pages)},()=>[]);
+    const total=lines.reduce((n,x)=>n+x.length+24,0), target=Math.max(1,total/chunks.length);
+    let page=0,used=0;
+    lines.forEach(line=>{const weight=line.length+24;if(page<chunks.length-1&&used>0&&used+weight>target){page++;used=0;}chunks[page].push(line);used+=weight;});
+    return chunks;
+}
+
 function generateMenuItemPptx(items) {
     const pptx=new PptxGenJS();
     const haccp="HACCP: Measure all temperatures with a cleaned and sanitized thermometer. Wash hands before handling food, after handling raw foods, and after any activity that may contaminate hands. Wash, rinse, and sanitize all equipment and utensils before and after use. Return all ingredients to refrigerated storage if preparation is delayed or interrupted. Heat any product needed to an internal temperature reaches 165F CCP-1, transfer into an appropriate container and cool to 45F CCP-2 then cover, label and refrigerate below 40F CCP-3.";
     items.forEach(menu=>{
         const fit=evaluateRecipeFit(menu,'menu',true), pages=Math.max(1,fit.pages), ingredients=getNonCreditIngredients(menu), perPage=Math.max(1,Math.ceil(ingredients.length/pages));
         const ingChunks=Array.from({length:pages},(_,i)=>ingredients.slice(i*perPage,(i+1)*perPage));
-        const stepPlain=richTextToPlainText(normalizeExportHtml(menu.steps||''),{dedupeAdjacentLines:false});
-        const sentences=stepPlain.split(/\n+|(?<=[.!?])\s+/).filter(Boolean), stepChunks=Array.from({length:pages},()=>[]), weights=Array(pages).fill(0);
-        sentences.forEach(x=>{const i=weights.indexOf(Math.min(...weights));stepChunks[i].push(x);weights[i]+=x.length;});
+        const preparationLines=getPptxPreparationLines(menu.steps||'');
+        const stepChunks=splitPptxLinesSequential(preparationLines,pages);
         for(let i=0;i<pages;i++){
             const slide=pptx.addSlide();
             slide.addText(i===0?(menu.name||'Menu Item'):`${menu.name||'Menu Item'} | Page ${i+1} of ${pages}`,{x:.35,y:.25,w:9.2,h:.48,fontSize:i?14:20,bold:true,fontFace:'Century Gothic',color:'1A1A1A',margin:0});
