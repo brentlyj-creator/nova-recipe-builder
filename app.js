@@ -4454,11 +4454,10 @@ function downloadPriceUpdateReviewCsv() {
                     viewPrepRecipe(prep.id);
                 };
                 row.innerHTML = `
-                    <td><strong>${prep.name}</strong>${prep.category ? ` <span style=\"font-size:0.72rem;color:#18bc9c;font-weight:bold;\">[${escapeHtml(prep.category)}]</span>` : ''}${prep.includeInExport === false ? ' <span style=\"font-size:0.7rem;color:#e74c3c;\">(excluded from export)</span>' : ''}</td>
+                    <td><strong>${prep.name}</strong>${prep.category ? ` <span style=\"font-size:0.72rem;color:#18bc9c;font-weight:bold;\">[${escapeHtml(prep.category)}]</span>` : ''}${prep.includeInExport === false ? ' <span style=\"font-size:0.7rem;color:#e74c3c;\">(excluded from export)</span>' : ''}${exportStatusHtml(evaluateRecipeFit(prep,'prep'))}</td>
                     <td>${prep.yieldAmount} ${prep.yieldUnit}</td>
                     <td>${shelfLifeDisplay}</td>
                     <td style="color: #18bc9c; font-weight: bold;">$${calculatePrepCostPerUnit(prep).toFixed(4)} / ${prep.yieldUnit === 'Each' ? 'Portion' : prep.yieldUnit}</td>
-                    <td>${exportStatusHtml(evaluateRecipeFit(prep,'prep'))}</td>
                     <td>
                         <button class="action-btn" onclick="printSinglePrepRecipe('${prep.id}')">🖨 Print</button>
                         <button class="action-btn" onclick="editPrep('${prep.id}')">Edit</button>
