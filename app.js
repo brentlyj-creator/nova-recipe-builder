@@ -73,7 +73,7 @@
         function evaluateRecipeFit(recipe,type='prep',force=false){
             if(!recipe)return null; const key=`${type}:${recipe.id}`; if(!force&&exportFitCache.has(key))return exportFitCache.get(key);
             const menu=type==='menu', ing=ingredientHtml(recipe,menu), steps=normalizeExportHtml(recipe.steps||''), tips=menu?normalizeExportHtml(recipe.tipsNotes||''):'';
-            const ingOne=fitFont(ing,menu?269:230,menu?192:600,9,7,true);
+            const ingOne=fitFont(ing,menu?269:230,menu?288:600,9,7,true);
             let pages=1; if(!ingOne.fits){ const perPage=Math.max(1,Math.floor((menu?360:650)*EXPORT_FIT.safety/Math.max(14,ingOne.height/Math.max(1,(menu?getNonCreditIngredients(recipe):(recipe.ingredients||[])).length)))); pages=Math.max(2,Math.ceil(Math.max(1,(menu?getNonCreditIngredients(recipe):(recipe.ingredients||[])).length)/perPage)); }
             const prepHeight=menu?312:480; const prepAvailable=prepHeight*(pages>1?Math.min(pages,EXPORT_FIT.maxPages):1);
             let stepFit=fitFont(steps,menu?269:620,prepAvailable,9,7,false);
@@ -4454,11 +4454,10 @@ function downloadPriceUpdateReviewCsv() {
                     viewPrepRecipe(prep.id);
                 };
                 row.innerHTML = `
-                    <td><strong>${prep.name}</strong>${prep.category ? ` <span style=\"font-size:0.72rem;color:#18bc9c;font-weight:bold;\">[${escapeHtml(prep.category)}]</span>` : ''}${prep.includeInExport === false ? ' <span style=\"font-size:0.7rem;color:#e74c3c;\">(excluded from export)</span>' : ''}</td>
+                    <td><strong>${prep.name}</strong>${prep.category ? ` <span style=\"font-size:0.72rem;color:#18bc9c;font-weight:bold;\">[${escapeHtml(prep.category)}]</span>` : ''}${prep.includeInExport === false ? ' <span style=\"font-size:0.7rem;color:#e74c3c;\">(excluded from export)</span>' : ''}${exportStatusHtml(evaluateRecipeFit(prep,'prep'))}</td>
                     <td>${prep.yieldAmount} ${prep.yieldUnit}</td>
                     <td>${shelfLifeDisplay}</td>
                     <td style="color: #18bc9c; font-weight: bold;">$${calculatePrepCostPerUnit(prep).toFixed(4)} / ${prep.yieldUnit === 'Each' ? 'Portion' : prep.yieldUnit}</td>
-                    <td>${exportStatusHtml(evaluateRecipeFit(prep,'prep'))}</td>
                     <td>
                         <button class="action-btn" onclick="printSinglePrepRecipe('${prep.id}')">🖨 Print</button>
                         <button class="action-btn" onclick="editPrep('${prep.id}')">Edit</button>
@@ -4627,12 +4626,11 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                     viewMenuRecipe(menu.id);
                 };
                 row.innerHTML = `
-                    <td><strong>${menu.name}</strong></td>
+                    <td><strong>${menu.name}</strong>${exportStatusHtml(evaluateRecipeFit(menu,'menu'))}</td>
                     <td>${menu.category}</td>
                     <td>$${liveFoodCost.toFixed(2)}</td>
                     <td>$${menu.targetPrice.toFixed(2)}</td>
                     <td style="color: ${costColor}; font-weight: bold;">${liveCostPercentage.toFixed(1)}%</td>
-                    <td>${exportStatusHtml(evaluateRecipeFit(menu,'menu'))}</td>
                                        <td>
                         <button class="action-btn" onclick="editMenu('${menu.id}')">Edit</button>
                         <button class="action-btn" style="background-color: var(--info);" onclick="openSingleDuplicateModal('${menu.id}', 'menu')">Copy</button>
