@@ -125,6 +125,45 @@
         .menu-line-row[draggable="true"] { cursor: grab; }
         .menu-line-row.dragging-row { opacity: 0.55; }
         .menu-line-row.drag-over-row td { border-top: 3px solid var(--secondary); background-color: #e8f4f2 !important; }
+
+        /* Desktop layout refresh */
+        :root { --sidebar-width:250px; --sidebar-collapsed-width:66px; --sticky-top:45px; }
+        .sidebar { width:var(--sidebar-width); transition:width .2s ease; z-index:900; }
+        .main-content { margin-left:var(--sidebar-width); transition:margin-left .2s ease; max-width:1800px; }
+        body.sidebar-collapsed .sidebar { width:var(--sidebar-collapsed-width); overflow-x:hidden; }
+        body.sidebar-collapsed .main-content { margin-left:var(--sidebar-collapsed-width); }
+        .sidebar-brand { display:flex; align-items:center; justify-content:space-between; padding:0 14px 14px; gap:8px; }
+        .sidebar-brand h2 { margin:0; white-space:nowrap; }
+        .sidebar-collapse-btn { width:30px; min-width:30px; height:30px; border:1px solid #52677a; border-radius:5px; background:#1a252f; color:#fff; cursor:pointer; }
+        .nav-icon { display:inline-flex; width:24px; justify-content:center; margin-right:8px; font-size:1.05rem; }
+        .nav-label,.sidebar-label { white-space:nowrap; }
+        .sidebar-section-label { padding:13px 18px 6px; color:#9fb0bf; font-size:.67rem; font-weight:700; letter-spacing:1px; text-transform:uppercase; }
+        .sub-nav .nav-btn { padding-left:38px; }
+        .sidebar-panel { display:none; padding:10px 14px 14px; background:#1f3040; border-bottom:1px solid #3b4c5c; }
+        .sidebar-panel.show { display:block; }
+        .quick-save-area { padding:10px 14px 4px; border-top:1px solid #445668; }
+        .save-status-line { display:flex; align-items:center; gap:8px; }
+        .save-status-dot { width:8px; height:8px; border-radius:50%; background:#18bc9c; flex:0 0 8px; }
+        body.sidebar-collapsed .sidebar-brand { justify-content:center; padding:0 8px 14px; }
+        body.sidebar-collapsed .sidebar-brand h2,body.sidebar-collapsed .property-select-container,body.sidebar-collapsed .nav-label,body.sidebar-collapsed .sidebar-section-label,body.sidebar-collapsed .sidebar-panel,body.sidebar-collapsed .sub-nav,body.sidebar-collapsed #saveStatus .sidebar-label { display:none!important; }
+        body.sidebar-collapsed .nav-btn { padding:15px 10px; text-align:center; border-left:none; }
+        body.sidebar-collapsed .nav-icon { margin:0; width:100%; }
+        body.sidebar-collapsed .dropdown-toggle::after { display:none; }
+        body.sidebar-collapsed .quick-save-area { padding:8px; }
+        body.sidebar-collapsed .quick-save-area .sidebar-tool-btn { height:38px; font-size:0; }
+        body.sidebar-collapsed .quick-save-area .sidebar-tool-btn::before { content:'💾'; font-size:17px; }
+        body.sidebar-collapsed #saveStatus { padding:12px 0; justify-content:center; }
+        .page-context-bar { position:sticky; top:0; z-index:500; display:flex; justify-content:space-between; align-items:center; gap:16px; background:#fff; border-bottom:1px solid var(--border-color); padding:11px 18px; margin:-30px -30px 22px; box-shadow:0 2px 5px rgba(0,0,0,.06); }
+        .page-context-title { font-size:1.1rem; font-weight:700; color:var(--primary); }
+        .page-context-property { color:#657786; font-size:.86rem; }
+        .collapsible-workflow { margin-bottom:20px; }
+        .workflow-toggle { width:100%; display:flex; justify-content:space-between; padding:11px 14px; border:1px solid var(--border-color); border-radius:6px; background:#f2f5f7; color:var(--primary); cursor:pointer; font-weight:700; }
+        .workflow-toggle::after { content:'▸'; }.workflow-toggle.open::after { content:'▾'; }
+        .workflow-panel { display:none; padding-top:12px; }.workflow-panel.show { display:block; }
+        .item-header-note { display:block; font-size:.67rem; line-height:1.25; color:#6f7d86; font-weight:500; margin-top:3px; }
+        table thead th { position:sticky; top:var(--sticky-top); z-index:20; box-shadow:0 1px 0 var(--border-color); }
+        .modal-content table thead th { top:0; }
+        .tab-content>p:first-of-type { max-width:980px; }
     </style>
 
     <meta name="theme-color" content="#18bc9c">
@@ -137,73 +176,45 @@
 
     <div id="toast" role="status" aria-live="polite"></div>
     <div class="sidebar">
-        <h2>F&B MANAGER</h2>
-        
-        <div class="property-select-container">
-            <label>Active Property</label>
-            <select id="globalPropertySelector" class="property-select"></select>
+        <div class="sidebar-brand"><h2>F&amp;B MANAGER</h2><button type="button" id="sidebarCollapseBtn" class="sidebar-collapse-btn" onclick="toggleSidebarCollapse()" title="Collapse navigation">◀</button></div>
+        <div class="property-select-container"><label>Active Property</label><select id="globalPropertySelector" class="property-select"></select></div>
+        <div class="sidebar-section-label">Operations</div>
+        <button class="nav-btn active" onclick="openTab(event,'menu-builder')" title="Menus"><span class="nav-icon">▤</span><span class="nav-label">Menus</span></button>
+        <button class="nav-btn dropdown-toggle" onclick="toggleDropdown(event,'itemMenu')" title="Items"><span class="nav-icon">▦</span><span class="nav-label">Items</span></button>
+        <div id="itemMenu" class="sub-nav">
+            <button class="nav-btn" onclick="openTab(event,'items')"><span class="nav-icon">•</span><span class="nav-label">Item Master</span></button>
+            <button class="nav-btn dropdown-toggle" onclick="toggleDropdown(event,'itemPriceToolsPanel')"><span class="nav-icon">$</span><span class="nav-label">Item Price Tools</span></button>
+            <div id="itemPriceToolsPanel" class="sidebar-panel">
+                <input type="file" id="priceUpdateCsvFile" accept=".csv" style="display:none" onchange="updatePriceCsvFileLabel(this)">
+                <button class="sidebar-tool-btn import" type="button" onclick="document.getElementById('priceUpdateCsvFile').click()">Choose Price CSV</button>
+                <div id="priceUpdateCsvFileName" class="sidebar-selected-file">No CSV selected</div>
+                <button class="sidebar-tool-btn export" type="button" onclick="importPriceUpdateCsv(document.getElementById('priceUpdateCsvFile').files[0])">Update Item Prices</button>
+            </div>
         </div>
-
-        <button class="nav-btn active" onclick="openTab(event, 'menu-builder')">Menus</button>
-        <button class="nav-btn" onclick="openTab(event, 'items')">Items</button>
-		<div class="sidebar-item-tools">
-		    <div class="sidebar-item-tools-title">Item Price Tools</div>
-		
-		    <input 
-		        type="file" 
-		        id="priceUpdateCsvFile" 
-		        accept=".csv" 
-		        style="display:none;" 
-		        onchange="updatePriceCsvFileLabel(this)"
-		    >
-		
-		    <button 
-		        class="sidebar-tool-btn import" 
-		        type="button" 
-		        onclick="document.getElementById('priceUpdateCsvFile').click()"
-		    >
-		        Choose Price CSV
-		    </button>
-		
-		    <div id="priceUpdateCsvFileName" class="sidebar-selected-file">
-		        No CSV selected
-		    </div>
-		
-		    <button 
-		        class="sidebar-tool-btn export" 
-		        type="button" 
-		        onclick="importPriceUpdateCsv(document.getElementById('priceUpdateCsvFile').files[0])"
-		    >
-		        Update Item Prices
-		    </button>
-		</div>
-			
-        <button class="nav-btn dropdown-toggle" onclick="toggleDropdown(event, 'recipeMenu')">Recipes</button>
-        <div id="recipeMenu" class="sub-nav">
-            <button class="nav-btn" onclick="openTab(event, 'prep')">Prep Recipes</button>
-            <button class="nav-btn" onclick="openTab(event, 'menu-items')">Menu Item Recipes</button>
-        </div>
-
-        <button class="nav-btn" onclick="openTab(event, 'hotels')">Property Management</button>
-        <button class="nav-btn" onclick="openTab(event, 'variance')">Inventory Variance</button>
-        <div class="sidebar-sync-tools">
-            <div class="sidebar-sync-title">Quick Data Tools</div>
-            <button class="sidebar-tool-btn" type="button" onclick="saveAllDataToBrowser(true)">Save Now</button>
-			<button class="sidebar-tool-btn" type="button" onclick="chooseBackupFolder()" style="background:#6f42c1;">Choose Backup Folder</button>
+        <button class="nav-btn dropdown-toggle" onclick="toggleDropdown(event,'recipeMenu')" title="Recipes"><span class="nav-icon">▣</span><span class="nav-label">Recipes</span></button>
+        <div id="recipeMenu" class="sub-nav"><button class="nav-btn" onclick="openTab(event,'prep')"><span class="nav-icon">•</span><span class="nav-label">Prep Recipes</span></button><button class="nav-btn" onclick="openTab(event,'menu-items')"><span class="nav-icon">•</span><span class="nav-label">Menu Item Recipes</span></button></div>
+        <button class="nav-btn" onclick="openTab(event,'variance')" title="Inventory Variance"><span class="nav-icon">±</span><span class="nav-label">Inventory Variance</span></button>
+        <div class="sidebar-section-label">Administration</div>
+        <button class="nav-btn dropdown-toggle" onclick="toggleDropdown(event,'quickDataToolsPanel')" title="Quick Data Tools"><span class="nav-icon">⭳</span><span class="nav-label">Quick Data Tools</span></button>
+        <div id="quickDataToolsPanel" class="sidebar-panel">
+            <button class="sidebar-tool-btn" type="button" onclick="chooseBackupFolder()" style="background:#6f42c1">Choose Backup Folder</button>
             <button class="sidebar-tool-btn export" type="button" onclick="exportAllDataToFile()">Backup JSON</button>
             <input type="file" id="importDataFile" class="sidebar-file-input" accept=".json">
             <button class="sidebar-tool-btn import" type="button" onclick="importAllDataFromFile(document.getElementById('importDataFile').files[0])">Import JSON</button>
             <div class="sidebar-tool-note">Choose a OneDrive backup folder once, then use Backup JSON before major edits or property-wide changes.</div>
         </div>
-        <div id="saveStatus">Saved</div>
+        <button class="nav-btn" onclick="openTab(event,'hotels')" title="Property Management"><span class="nav-icon">⚙</span><span class="nav-label">Property Management</span></button>
+        <div class="quick-save-area"><button class="sidebar-tool-btn" type="button" onclick="saveAllDataToBrowser(true)"><span class="nav-label">Save Now</span></button></div>
+        <div id="saveStatus" class="save-status-line"><span class="save-status-dot"></span><span class="sidebar-label">Saved</span></div>
     </div>
-
     <div class="main-content">
+        <div class="page-context-bar"><div id="pageContextTitle" class="page-context-title">Menus</div><div class="page-context-property">Active Property: <strong class="display-property-name"></strong></div></div>
         
         <div id="menu-builder" class="tab-content active">
             <h2>Menus</h2>
             <p>Select your property from the sidebar. Build property-specific menus, categories, sales counts, and theoretical food cost.</p>
 
+            <div class="collapsible-workflow"><button type="button" class="workflow-toggle" onclick="toggleWorkflowPanel('menuSetupPanel',this)">+ Menu &amp; Category Setup</button><div id="menuSetupPanel" class="workflow-panel">
             <div class="grid-2">
                 <div class="form-section">
                     <h3>Add / Edit Menu</h3>
@@ -267,6 +278,7 @@
                 </table>
             </div>
 
+            </div></div>
             <div class="form-section">
                 <h3>Selected Menu Detail
                     <button type="button" class="btn-submit" onclick="printMenuReport()" style="width:auto; padding: 6px 14px; font-size:0.85rem; margin-left:15px;">🖨 Print Report</button>
@@ -449,6 +461,7 @@
         <div id="items" class="tab-content">
             <h2>Item Master (Global)</h2>
             <p style="color: #7f8c8d; font-size: 0.9rem; margin-top: -10px;">Items created here are available to all properties.</p>
+            <div class="collapsible-workflow"><button type="button" class="workflow-toggle" onclick="toggleWorkflowPanel('itemFormPanel',this)">+ Add New Item</button><div id="itemFormPanel" class="workflow-panel">
             <div class="form-section">
                                 <form id="itemForm">
                     <input type="hidden" id="editItemId" value="">
@@ -577,6 +590,7 @@
                 </form>
             </div>
 
+            </div></div>
                         <div class="table-tools">
                 <h3>Current Inventory Items</h3>
                                 <div class="filter-controls">
@@ -600,7 +614,7 @@
             <table id="itemTable">
                 <thead>
                     <tr>
-                        <th>Item Name</th>
+                        <th>Item Name<span class="item-header-note">Select an item to view recipe usage</span></th>
                         <th>SKU</th>
                         <th>Supplier</th>
                         <th>Category</th>
