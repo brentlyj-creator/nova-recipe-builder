@@ -78,7 +78,7 @@
             host.appendChild(el); const height=el.scrollHeight; el.remove(); return height;
         }
         function fitMenuPrepFont(html,width,height,normal=9,min=7){
-            const allowed=height*EXPORT_FIT.safety;
+            const allowed=height*0.84;
             for(let pt=normal;pt>=min;pt-=0.5){const used=measureMenuPrepHtml(html,width,pt);if(used<=allowed)return {fits:true,fontPt:pt,usedPct:Math.min(100,Math.round(used/allowed*100)),height:used,allowed};}
             const used=measureMenuPrepHtml(html,width,min);return {fits:false,fontPt:min,usedPct:Math.round(used/allowed*100),height:used,allowed};
         }
