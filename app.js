@@ -5742,7 +5742,7 @@ function generateMenuItemPptx(items) {
             const ingText=(ingChunks[i]||[]).map(ing=>({text:`${ing.qty||''} ${ing.unit||''} — ${ing.name||''}`.trim(),options:{fontSize:(fit.ingredients?.fontPt||9),fontFace:'Century Gothic',breakLine:true,paraSpaceAfterPt:0}}));
             slide.addText(ingText.length?ingText:[{text:first?'No ingredients listed.':'No additional ingredients on this page.',options:{fontSize:8,color:'777777'}}],{x:left,y:first?.95:1.25,w:ingW,h:first?3.55:3.1,valign:'top',wrap:true,margin:0});
             slide.addText(first?'PREPARATION':'PREPARATION — CONTINUED',{x:prepX,y:first?.60:.9,w:prepW,h:first?.328:.3,fontSize:12,bold:true,fontFace:'Century Gothic',charSpacing:2,margin:0});
-            slide.addText(stepChunks[i].length?stepChunks[i].join('\n'):'',{x:prepX,y:first?.95:1.25,w:prepW,h:first?3.561:(i===pages-1?2.65:3.25),fontSize:fit.steps.fontPt,fontFace:'Century Gothic',valign:'top',wrap:true,margin:0,breakLine:false,paraSpaceAfterPt:6});
+            slide.addText(stepChunks[i].length?stepChunks[i].join('\n\n'):'',{x:prepX,y:first?.95:1.25,w:prepW,h:first?3.561:(i===pages-1?2.65:3.25),fontSize:fit.steps.fontPt,fontFace:'Century Gothic',valign:'top',wrap:true,margin:0,breakLine:false,paraSpaceAfterPt:6});
             if(i===pages-1){
                 const tips=richTextToPlainText(normalizeExportHtml(menu.tipsNotes||''),{dedupeAdjacentLines:false});
                 if(first){
