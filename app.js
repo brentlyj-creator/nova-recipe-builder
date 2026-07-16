@@ -70,21 +70,34 @@
         }
         function ingredientHtml(recipe, isMenu=false) { const rows=(isMenu?getNonCreditIngredients(recipe):(recipe.ingredients||[])); return rows.length?rows.map(i=>`<li>${escapeHtml(i.qty)} ${escapeHtml(i.unit)} — ${escapeHtml(i.name)}</li>`).join(''):'<li>No ingredients listed.</li>'; }
         function fitFont(html,width,height,normal=9,min=7,list=false){ const allowed=height*EXPORT_FIT.safety; for(let pt=normal;pt>=min;pt-=0.5){const used=measureExportHtml(html,width,pt,list);if(used<=allowed)return {fits:true,fontPt:pt,usedPct:Math.min(100,Math.round(used/allowed*100)),height:used,allowed};} const used=measureExportHtml(html,width,min,list);return {fits:false,fontPt:min,usedPct:Math.round(used/allowed*100),height:used,allowed}; }
+        function measureMenuPrepHtml(html,widthPx,fontPt) {
+            const host=ensureMeasureHost(); const el=document.createElement('div');
+            el.style.cssText=`width:${widthPx}px;font-family:Century Gothic,Arial,sans-serif;font-size:${fontPt}pt;line-height:1;box-sizing:border-box;padding:0;margin:0;white-space:normal;overflow-wrap:anywhere;`;
+            el.innerHTML=html||'';
+            el.querySelectorAll('p,div,li').forEach(block=>{block.style.margin='0 0 6pt 0';block.style.padding='0';});
+            el.querySelectorAll('ol,ul').forEach(list=>{list.style.margin='0';list.style.paddingLeft='0';});
+            host.appendChild(el); const height=el.scrollHeight; el.remove(); return height;
+        }
+        function fitMenuPrepFont(html,width,height,normal=9,min=7){
+            const allowed=height*EXPORT_FIT.safety;
+            for(let pt=normal;pt>=min;pt-=0.5){const used=measureMenuPrepHtml(html,width,pt);if(used<=allowed)return {fits:true,fontPt:pt,usedPct:Math.min(100,Math.round(used/allowed*100)),height:used,allowed};}
+            const used=measureMenuPrepHtml(html,width,min);return {fits:false,fontPt:min,usedPct:Math.round(used/allowed*100),height:used,allowed};
+        }
         function evaluateRecipeFit(recipe,type='prep',force=false){
             if(!recipe)return null; const key=`${type}:${recipe.id}`; if(!force&&exportFitCache.has(key))return exportFitCache.get(key);
             const menu=type==='menu', ing=ingredientHtml(recipe,menu), steps=normalizeExportHtml(recipe.steps||''), tips=menu?normalizeExportHtml(recipe.tipsNotes||''):'';
             const ingOne=fitFont(ing,menu?269:230,menu?300:600,9,7,true);
             let pages=1; if(!ingOne.fits){ const perPage=Math.max(1,Math.floor((menu?360:650)*EXPORT_FIT.safety/Math.max(14,ingOne.height/Math.max(1,(menu?getNonCreditIngredients(recipe):(recipe.ingredients||[])).length)))); pages=Math.max(2,Math.ceil(Math.max(1,(menu?getNonCreditIngredients(recipe):(recipe.ingredients||[])).length)/perPage)); }
             const prepHeight=menu?342:480;
-            let stepFit=fitFont(steps,menu?348:620,prepHeight,9,7,false);
+            let stepFit=menu?fitMenuPrepFont(steps,348,prepHeight,9,7):fitFont(steps,620,prepHeight,9,7,false);
             if(menu&&!stepFit.fits){
                 const pagesForSteps=Math.max(2,Math.ceil(stepFit.height/(prepHeight*EXPORT_FIT.safety)));
                 pages=Math.max(pages,pagesForSteps);
-                stepFit=fitFont(steps,348,prepHeight*Math.min(pages,EXPORT_FIT.maxPages),9,7,false);
+                stepFit=fitMenuPrepFont(steps,348,prepHeight*Math.min(pages,EXPORT_FIT.maxPages),9,7);
             } else if(pages>1&&!stepFit.fits){
                 const extra=Math.ceil(stepFit.height/(prepHeight*EXPORT_FIT.safety));
                 pages=Math.max(pages,extra);
-                stepFit=fitFont(steps,menu?348:620,prepHeight*Math.min(pages,EXPORT_FIT.maxPages),9,7,false);
+                stepFit=menu?fitMenuPrepFont(steps,348,prepHeight*Math.min(pages,EXPORT_FIT.maxPages),9,7):fitFont(steps,620,prepHeight*Math.min(pages,EXPORT_FIT.maxPages),9,7,false);
             }
             const tipsFit=menu?fitFont(tips,332,82,9,7,false):{fits:true,fontPt:9,usedPct:0};
             const over=[]; if(!stepFit.fits)over.push('Steps of Preparation'); if(menu&&!tipsFit.fits)over.push('Tips / Notes'); if(pages>EXPORT_FIT.maxPages)over.push('Recipe exceeds four-page export limit');
@@ -5696,12 +5709,12 @@ function splitPptxLinesSequential(lines,pages){
     return chunks;
 }
 function preparationChunksForPptx(menu,pages,lines){
-    const onePageFit=fitFont(normalizeExportHtml(menu.steps||''),348,342,9,7,false);
+    const onePageFit=fitMenuPrepFont(normalizeExportHtml(menu.steps||''),348,342,9,7);
     if(onePageFit.fits)return [lines,...Array.from({length:Math.max(0,pages-1)},()=>[])];
     return splitPptxLinesSequential(lines,pages);
 }
 function preparationRunsForPptx(lines,fontPt){
-    return lines.map((line,index)=>({text:line,options:{fontSize:fontPt,fontFace:'Century Gothic',breakLine:index<lines.length-1,paraSpaceAfterPt:3}}));
+    return lines.map((line,index)=>({text:line,options:{fontSize:fontPt,fontFace:'Century Gothic',breakLine:index<lines.length-1,paraSpaceAfterPt:6}}));
 }
 
 function generateMenuItemPptx(items) {
