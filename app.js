@@ -4612,7 +4612,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                 filteredData.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
             }
             
-            if(filteredData.length === 0) { tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #777;">No menu items match your criteria.</td></tr>`; return; }
+            if(filteredData.length === 0) { tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #777;">No menu items match your criteria.</td></tr>`; return; }
 
             filteredData.forEach(menu => {
             const liveFoodCost = calculateMenuFoodCostExcludingCredits(menu);
@@ -4627,13 +4627,12 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                     viewMenuRecipe(menu.id);
                 };
                 row.innerHTML = `
-                    <td><strong>${menu.name}</strong></td>
+                    <td><strong>${menu.name}</strong>${exportStatusHtml(evaluateRecipeFit(menu,'menu'))}</td>
                     <td>${menu.category}</td>
                     <td>$${liveFoodCost.toFixed(2)}</td>
                     <td>$${menu.targetPrice.toFixed(2)}</td>
                     <td style="color: ${costColor}; font-weight: bold;">${liveCostPercentage.toFixed(1)}%</td>
-                    <td>${exportStatusHtml(evaluateRecipeFit(menu,'menu'))}</td>
-                                       <td>
+                    <td>
                         <button class="action-btn" onclick="editMenu('${menu.id}')">Edit</button>
                         <button class="action-btn" style="background-color: var(--info);" onclick="openSingleDuplicateModal('${menu.id}', 'menu')">Copy</button>
                         <button class="action-btn" style="background-color: #27ae60;" onclick="exportSingleMenuItemPptx('${menu.id}')">🖨 PPTX</button>
@@ -5649,16 +5648,37 @@ function getPptxPreparationLines(html) {
     const t=document.createElement('template');
     t.innerHTML=normalizeExportHtml(html||'');
     const lines=[];
-    const pushText=(text,prefix='')=>{const clean=String(text||'').replace(/\s+/g,' ').trim();if(clean)lines.push(prefix+clean);};
-    [...t.content.childNodes].forEach(node=>{
-        if(node.nodeType===Node.TEXT_NODE){pushText(node.textContent);return;}
+    const clean=text=>String(text||'').replace(/\s+/g,' ').trim();
+    const push=(text,prefix='')=>{const value=clean(text);if(value)lines.push(prefix+value);};
+    const walk=(node,listContext=null)=>{
+        if(node.nodeType===Node.TEXT_NODE){
+            if(!node.parentElement || node.parentElement===t.content) push(node.textContent);
+            return;
+        }
         if(node.nodeType!==Node.ELEMENT_NODE)return;
-        if(node.tagName==='OL'){[...node.children].forEach((li,i)=>pushText(li.textContent,(i+1)+'. '));}
-        else if(node.tagName==='UL'){[...node.children].forEach(li=>pushText(li.textContent,'• '));}
-        else if(node.tagName==='LI'){pushText(node.textContent);}
-        else{pushText(node.textContent);}
-    });
-    if(!lines.length){const plain=richTextToPlainText(html,{dedupeAdjacentLines:false});plain.split(/\n+/).forEach(x=>pushText(x));}
+        const tag=node.tagName;
+        if(tag==='OL'||tag==='UL'){
+            [...node.children].forEach((li,index)=>{
+                if(li.tagName!=='LI'){walk(li);return;}
+                const clone=li.cloneNode(true);
+                clone.querySelectorAll('ol,ul').forEach(n=>n.remove());
+                push(clone.textContent,tag==='OL'?`${index+1}. `:'• ');
+                [...li.children].filter(child=>child.tagName==='OL'||child.tagName==='UL').forEach(child=>walk(child,tag));
+            });
+            return;
+        }
+        if(tag==='LI'){push(node.textContent,listContext==='UL'?'• ':'');return;}
+        if(['P','DIV'].includes(tag)){
+            const containsBlocks=node.querySelector(':scope > ol, :scope > ul, :scope > p, :scope > div');
+            if(containsBlocks){[...node.childNodes].forEach(child=>walk(child));}
+            else push(node.textContent);
+            return;
+        }
+        if(tag==='BR')return;
+        [...node.childNodes].forEach(child=>walk(child));
+    };
+    [...t.content.childNodes].forEach(node=>walk(node));
+    if(!lines.length)richTextToPlainText(html,{dedupeAdjacentLines:false}).split(/\n+/).forEach(line=>push(line));
     return lines;
 }
 function splitPptxLinesSequential(lines,pages){
@@ -5668,6 +5688,14 @@ function splitPptxLinesSequential(lines,pages){
     lines.forEach(line=>{const weight=line.length+24;if(page<chunks.length-1&&used>0&&used+weight>target){page++;used=0;}chunks[page].push(line);used+=weight;});
     return chunks;
 }
+function preparationChunksForPptx(menu,pages,lines){
+    const onePageFit=fitFont(normalizeExportHtml(menu.steps||''),269,312,9,7,false);
+    if(onePageFit.fits)return [lines,...Array.from({length:Math.max(0,pages-1)},()=>[])];
+    return splitPptxLinesSequential(lines,pages);
+}
+function preparationRunsForPptx(lines,fontPt){
+    return lines.map((line,index)=>({text:line,options:{fontSize:fontPt,fontFace:'Century Gothic',breakLine:index<lines.length-1,paraSpaceAfterPt:3}}));
+}
 
 function generateMenuItemPptx(items) {
     const pptx=new PptxGenJS();
@@ -5676,7 +5704,7 @@ function generateMenuItemPptx(items) {
         const fit=evaluateRecipeFit(menu,'menu',true), pages=Math.max(1,fit.pages), ingredients=getNonCreditIngredients(menu), perPage=Math.max(1,Math.ceil(ingredients.length/pages));
         const ingChunks=Array.from({length:pages},(_,i)=>ingredients.slice(i*perPage,(i+1)*perPage));
         const preparationLines=getPptxPreparationLines(menu.steps||'');
-        const stepChunks=splitPptxLinesSequential(preparationLines,pages);
+        const stepChunks=preparationChunksForPptx(menu,pages,preparationLines);
         for(let i=0;i<pages;i++){
             const slide=pptx.addSlide();
             slide.addText(i===0?(menu.name||'Menu Item'):`${menu.name||'Menu Item'} | Page ${i+1} of ${pages}`,{x:.35,y:.25,w:9.2,h:.48,fontSize:i?14:20,bold:true,fontFace:'Century Gothic',color:'1A1A1A',margin:0});
@@ -5686,7 +5714,7 @@ function generateMenuItemPptx(items) {
             const ingText=(ingChunks[i]||[]).map(ing=>({text:`${ing.qty||''} ${ing.unit||''} — ${ing.name||''}`.trim(),options:{bullet:{type:'bullet',characterCode:'2022'},fontSize:fit.steps.fontPt,fontFace:'Century Gothic',breakLine:true}}));
             slide.addText(ingText.length?ingText:[{text:'No additional ingredients on this page.',options:{fontSize:8,color:'777777'}}],{x:left,y:1.25,w:ingW,h:3.1,valign:'top',wrap:true,margin:.04});
             slide.addText(i?'PREPARATION — CONTINUED':'PREPARATION',{x:prepX,y:.9,w:prepW,h:.3,fontSize:12,bold:true,fontFace:'Century Gothic',charSpacing:2,margin:0});
-            slide.addText(stepChunks[i].join('\n')||'',{x:prepX,y:1.25,w:prepW,h:i===pages-1?2.65:3.25,fontSize:fit.steps.fontPt,fontFace:'Century Gothic',valign:'top',wrap:true,margin:.04,breakLine:true});
+            slide.addText(stepChunks[i].length?preparationRunsForPptx(stepChunks[i],fit.steps.fontPt):'',{x:prepX,y:1.25,w:prepW,h:i===pages-1?2.65:3.25,fontSize:fit.steps.fontPt,fontFace:'Century Gothic',valign:'top',wrap:true,margin:.04,breakLine:false});
             if(i===pages-1){const tips=richTextToPlainText(normalizeExportHtml(menu.tipsNotes||''),{dedupeAdjacentLines:false});if(tips){slide.addShape(pptx.ShapeType.rect,{x:prepX,y:3.95,w:prepW,h:.55,line:{color:'CCCCCC'},fill:{color:'FFFFFF'}});slide.addText('TIPS / NOTES: '+tips,{x:prepX+.05,y:4.0,w:prepW-.1,h:.45,fontSize:fit.tips.fontPt,fontFace:'Century Gothic',margin:.02,wrap:true});}slide.addText(haccp,{x:.3,y:4.72,w:9.3,h:.72,fontSize:7.5,fontFace:'Century Gothic',wrap:true,margin:.02,line:{color:'CCCCCC',width:.5,pt:'top'}});}
         }
     });
