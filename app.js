@@ -64,7 +64,7 @@
             clearTimeout(showToast._timer);
             showToast._timer = setTimeout(() => { toast.style.display = 'none'; }, 2600);
         }
-        function setSaveStatus(text, color = '#aaa') { const el = document.getElementById('saveStatus'); if (!el) return; el.textContent = text; el.style.color = color; }
+        function setSaveStatus(text, color = '#aaa') { const el=document.getElementById('saveStatus'); if(!el)return; const label=el.querySelector('.sidebar-label'); if(label)label.textContent=text; else el.textContent=text; el.style.color=color; const dot=el.querySelector('.save-status-dot'); if(dot)dot.style.background=color; }
         function markDirty() { setSaveStatus('Unsaved changes', '#f39c12'); }
         function markClean() { setSaveStatus('Saved', '#18bc9c'); }
         function debounce(fn, delay = 200) { let timer; return function(...args) { clearTimeout(timer); timer = setTimeout(() => fn.apply(this, args), delay); }; }
@@ -2205,6 +2205,13 @@ function executeBulkExport() {
             document.querySelectorAll('.display-property-name').forEach(el => el.textContent = currentProperty);
         }
 
+        // --- DESKTOP LAYOUT PREFERENCES ---
+        const UI_LAYOUT_STORAGE_KEY = 'fb_recipe_cogs_manager_ui_layout';
+        const TAB_TITLES = {'menu-builder':'Menus',items:'Item Master',prep:'Prep Recipes','menu-items':'Menu Item Recipes',hotels:'Property Management',variance:'Inventory Variance'};
+        function updatePageContext(tabName){const el=document.getElementById('pageContextTitle');if(el)el.textContent=TAB_TITLES[tabName]||'F&B Manager';}
+        function toggleSidebarCollapse(forceState=null){const collapsed=forceState===null?!document.body.classList.contains('sidebar-collapsed'):!!forceState;document.body.classList.toggle('sidebar-collapsed',collapsed);const btn=document.getElementById('sidebarCollapseBtn');if(btn){btn.textContent=collapsed?'▶':'◀';btn.title=collapsed?'Expand navigation':'Collapse navigation';}try{localStorage.setItem(UI_LAYOUT_STORAGE_KEY,JSON.stringify({collapsed}));}catch(err){}}
+        function restoreLayoutPreference(){let collapsed=false;try{collapsed=!!JSON.parse(localStorage.getItem(UI_LAYOUT_STORAGE_KEY)||'{}').collapsed;}catch(err){}toggleSidebarCollapse(collapsed);updatePageContext(document.querySelector('.tab-content.active')?.id||'menu-builder');}
+        function toggleWorkflowPanel(panelId,button){const panel=document.getElementById(panelId);if(!panel)return;const open=panel.classList.toggle('show');if(button)button.classList.toggle('open',open);}
         // --- Navigation Logic ---
         function openTab(evt, tabName) {
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
@@ -2212,6 +2219,7 @@ function executeBulkExport() {
             const tab = document.getElementById(tabName);
             if (tab) tab.classList.add('active');
             if (evt?.currentTarget) evt.currentTarget.classList.add('active');
+            updatePageContext(tabName);
             if (tabName === 'menu-builder') { renderPropertyMenuPicker(); renderPropertyMenus(); renderSelectedPropertyMenuDetails(); }
             else if (tabName === 'menu-items') { updateMenuCategoryFilterOptions(); renderMenuTable(); }
             else if (tabName === 'prep') { renderPrepTable(); }
@@ -4289,7 +4297,7 @@ function downloadPriceUpdateReviewCsv() {
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td><strong class="item-usage-link" onclick="openItemRecipeUsage('${item.id}')" title="Click to see every recipe and property where this item is used">${escapeHtml(item.name)}</strong>${item.excludeFromVariance ? ' <span style="font-size:0.7rem;color:#e74c3c;">(no variance)</span>' : ''}<br><span style="font-size:0.7rem;color:#7f8c8d;">Click item name for recipe usage</span></td>
+                    <td><strong class="item-usage-link" onclick="openItemRecipeUsage('${item.id}')" title="Click to see every recipe and property where this item is used">${escapeHtml(item.name)}</strong>${item.excludeFromVariance ? ' <span style="font-size:0.7rem;color:#e74c3c;">(no variance)</span>' : ''}</td>
                     <td>${skuDisplay}</td>
                     <td>${supplierDisplay}</td>
                     <td>${item.category || '—'}</td>
@@ -5689,3 +5697,5 @@ function generateMenuItemPptx(items) {
 }
 
     
+
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',restoreLayoutPreference);else restoreLayoutPreference();
