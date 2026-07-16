@@ -73,14 +73,22 @@
         function evaluateRecipeFit(recipe,type='prep',force=false){
             if(!recipe)return null; const key=`${type}:${recipe.id}`; if(!force&&exportFitCache.has(key))return exportFitCache.get(key);
             const menu=type==='menu', ing=ingredientHtml(recipe,menu), steps=normalizeExportHtml(recipe.steps||''), tips=menu?normalizeExportHtml(recipe.tipsNotes||''):'';
-            const ingOne=fitFont(ing,menu?269:230,menu?192:600,9,7,true);
+            const ingOne=fitFont(ing,menu?269:230,menu?300:600,9,7,true);
             let pages=1; if(!ingOne.fits){ const perPage=Math.max(1,Math.floor((menu?360:650)*EXPORT_FIT.safety/Math.max(14,ingOne.height/Math.max(1,(menu?getNonCreditIngredients(recipe):(recipe.ingredients||[])).length)))); pages=Math.max(2,Math.ceil(Math.max(1,(menu?getNonCreditIngredients(recipe):(recipe.ingredients||[])).length)/perPage)); }
-            const prepHeight=menu?322:480; const prepAvailable=prepHeight*(pages>1?Math.min(pages,EXPORT_FIT.maxPages):1);
-            let stepFit=fitFont(steps,menu?302:620,prepAvailable,9,7,false);
-            if(pages>1&&!stepFit.fits){ const extra=Math.ceil(stepFit.height/(prepHeight*EXPORT_FIT.safety)); pages=Math.max(pages,extra); stepFit=fitFont(steps,menu?302:620,prepHeight*Math.min(pages,EXPORT_FIT.maxPages),9,7,false); }
-            const tipsFit=menu?fitFont(tips,259,pages>1?115:53,9,7,false):{fits:true,fontPt:9,usedPct:0};
+            const prepHeight=menu?342:480;
+            let stepFit=fitFont(steps,menu?348:620,prepHeight,9,7,false);
+            if(menu&&!stepFit.fits){
+                const pagesForSteps=Math.max(2,Math.ceil(stepFit.height/(prepHeight*EXPORT_FIT.safety)));
+                pages=Math.max(pages,pagesForSteps);
+                stepFit=fitFont(steps,348,prepHeight*Math.min(pages,EXPORT_FIT.maxPages),9,7,false);
+            } else if(pages>1&&!stepFit.fits){
+                const extra=Math.ceil(stepFit.height/(prepHeight*EXPORT_FIT.safety));
+                pages=Math.max(pages,extra);
+                stepFit=fitFont(steps,menu?348:620,prepHeight*Math.min(pages,EXPORT_FIT.maxPages),9,7,false);
+            }
+            const tipsFit=menu?fitFont(tips,332,82,9,7,false):{fits:true,fontPt:9,usedPct:0};
             const over=[]; if(!stepFit.fits)over.push('Steps of Preparation'); if(menu&&!tipsFit.fits)over.push('Tips / Notes'); if(pages>EXPORT_FIT.maxPages)over.push('Recipe exceeds four-page export limit');
-            const result={type,pages:Math.min(pages,EXPORT_FIT.maxPages),requiredPages:pages,ingredientsContinued:!ingOne.fits,steps:stepFit,tips:tipsFit,overflow:over.length>0,overflowBlocks:over};
+            const result={type,pages:Math.min(pages,EXPORT_FIT.maxPages),requiredPages:pages,ingredientsContinued:!ingOne.fits,ingredients:ingOne,steps:stepFit,tips:tipsFit,overflow:over.length>0,overflowBlocks:over};
             exportFitCache.set(key,result); return result;
         }
         function exportStatusText(f){if(!f)return '';if(f.overflow)return `⚠ Text Overflow — ${f.overflowBlocks.join(' and ')}`;if(f.pages>=4)return '4-page layout — Review recommended';if(f.pages>1)return `${f.pages}-page layout — Ingredients continued`;return '';}
@@ -5688,7 +5696,7 @@ function splitPptxLinesSequential(lines,pages){
     return chunks;
 }
 function preparationChunksForPptx(menu,pages,lines){
-    const onePageFit=fitFont(normalizeExportHtml(menu.steps||''),302,322,9,7,false);
+    const onePageFit=fitFont(normalizeExportHtml(menu.steps||''),348,342,9,7,false);
     if(onePageFit.fits)return [lines,...Array.from({length:Math.max(0,pages-1)},()=>[])];
     return splitPptxLinesSequential(lines,pages);
 }
@@ -5698,23 +5706,43 @@ function preparationRunsForPptx(lines,fontPt){
 
 function generateMenuItemPptx(items) {
     const pptx=new PptxGenJS();
-    const haccp="HACCP: Measure all temperatures with a cleaned and sanitized thermometer. Wash hands before handling food, after handling raw foods, and after any activity that may contaminate hands. Wash, rinse, and sanitize all equipment and utensils before and after use. Return all ingredients to refrigerated storage if preparation is delayed or interrupted. Heat any product needed to an internal temperature reaches 165F CCP-1, transfer into an appropriate container and cool to 45F CCP-2 then cover, label and refrigerate below 40F CCP-3.";
+    const haccpBody="Measure all temperatures with a cleaned and sanitized thermometer. Wash hands before handling food, after handling raw foods, and after any activity that may contaminate hands. Wash, rinse, and sanitize all equipment and utensils before and after use. Return all ingredients to refrigerated storage if preparation is delayed or interrupted. Heat any product needed to an internal temperature reaches 165F CCP-1, transfer into an appropriate container and cool to 45F CCP-2 then cover, label and refrigerate below 40F CCP-3.";
     items.forEach(menu=>{
-        const fit=evaluateRecipeFit(menu,'menu',true), pages=Math.max(1,fit.pages), ingredients=getNonCreditIngredients(menu), perPage=Math.max(1,Math.ceil(ingredients.length/pages));
-        const ingChunks=Array.from({length:pages},(_,i)=>ingredients.slice(i*perPage,(i+1)*perPage));
+        const fit=evaluateRecipeFit(menu,'menu',true);
+        const pages=Math.max(1,fit.pages);
+        const ingredients=getNonCreditIngredients(menu);
+        const ingredientPages=fit.ingredientsContinued?pages:1;
+        const perPage=Math.max(1,Math.ceil(ingredients.length/ingredientPages));
+        const ingChunks=Array.from({length:pages},(_,i)=>i<ingredientPages?ingredients.slice(i*perPage,(i+1)*perPage):[]);
         const preparationLines=getPptxPreparationLines(menu.steps||'');
         const stepChunks=preparationChunksForPptx(menu,pages,preparationLines);
         for(let i=0;i<pages;i++){
             const slide=pptx.addSlide();
-            slide.addText(i===0?(menu.name||'Menu Item'):`${menu.name||'Menu Item'} | Page ${i+1} of ${pages}`,{x:.35,y:.25,w:9.2,h:.48,fontSize:i?14:20,bold:true,fontFace:'Century Gothic',color:'1A1A1A',margin:0});
-            if(i===0){slide.addShape(pptx.ShapeType.rect,{x:.3,y:.85,w:3.2,h:3.65,fill:{color:'F7F7F7',transparency:10},line:{color:'999999',width:1,dash:'dash'}});slide.addText('Cook Time: '+(menu.cookTime||'N/A'),{x:.35,y:4.55,w:3.1,h:.25,fontSize:10,bold:true,italic:true,fontFace:'Century Gothic',margin:0});}
-            const left=i===0?3.7:.4, ingW=i===0?2.55:3.0, prepX=i===0?6.45:3.7, prepW=i===0?3.15:5.9;
-            slide.addText(i?'INGREDIENTS — CONTINUED':'INGREDIENTS',{x:left,y:.9,w:ingW,h:.3,fontSize:11,bold:true,fontFace:'Century Gothic',charSpacing:2,margin:0});
-            const ingText=(ingChunks[i]||[]).map(ing=>({text:`${ing.qty||''} ${ing.unit||''} — ${ing.name||''}`.trim(),options:{bullet:{type:'bullet',characterCode:'2022'},fontSize:fit.steps.fontPt,fontFace:'Century Gothic',breakLine:true}}));
-            slide.addText(ingText.length?ingText:[{text:'No additional ingredients on this page.',options:{fontSize:8,color:'777777'}}],{x:left,y:1.25,w:ingW,h:3.1,valign:'top',wrap:true,margin:.04});
-            slide.addText(i?'PREPARATION — CONTINUED':'PREPARATION',{x:prepX,y:.9,w:prepW,h:.3,fontSize:12,bold:true,fontFace:'Century Gothic',charSpacing:2,margin:0});
-            slide.addText(stepChunks[i].length?preparationRunsForPptx(stepChunks[i],fit.steps.fontPt):'',{x:prepX,y:1.25,w:prepW,h:i===pages-1?2.75:3.25,fontSize:fit.steps.fontPt,fontFace:'Century Gothic',valign:'top',wrap:true,margin:.04,breakLine:false});
-            if(i===pages-1){const tips=richTextToPlainText(normalizeExportHtml(menu.tipsNotes||''),{dedupeAdjacentLines:false});if(tips){slide.addShape(pptx.ShapeType.rect,{x:prepX,y:4.05,w:prepW,h:.55,line:{color:'CCCCCC'},fill:{color:'FFFFFF'}});slide.addText('TIPS / NOTES: '+tips,{x:prepX+.05,y:4.10,w:prepW-.1,h:.45,fontSize:fit.tips.fontPt,fontFace:'Century Gothic',margin:.02,wrap:true});}slide.addText([{text:'HACCP: ',options:{bold:true}},{text:haccp.replace(/^HACCP:\s*/,''),options:{bold:false}}],{x:.3,y:4.72,w:9.3,h:.72,fontSize:7.5,fontFace:'Century Gothic',wrap:true,margin:.02});}
+            const first=i===0;
+            slide.addText(first?(menu.name||'Menu Item'):`${menu.name||'Menu Item'} | Page ${i+1} of ${pages}`,{x:.35,y:.25,w:first?4.45:9.2,h:.48,fontSize:first?20:14,bold:true,fontFace:'Century Gothic',color:'1A1A1A',margin:0});
+            if(first){
+                slide.addText('Cook Time: '+(menu.cookTime||'N/A'),{x:.35,y:.618,w:3.1,h:.25,fontSize:10,bold:true,italic:true,fontFace:'Century Gothic',margin:0});
+                slide.addShape(pptx.ShapeType.rect,{x:.3,y:.85,w:3.2,h:3.65,fill:{color:'F7F7F7',transparency:10},line:{color:'999999',width:1,dash:'dash'}});
+            }
+            const left=first?3.7:.4, ingW=first?2.081:3.0, prepX=first?5.971:3.7, prepW=first?3.629:5.9;
+            slide.addText(first?'INGREDIENTS':'INGREDIENTS — CONTINUED',{x:left,y:first?.60:.9,w:ingW,h:first?.328:.3,fontSize:11,bold:true,fontFace:'Century Gothic',charSpacing:2,margin:0});
+            const ingText=(ingChunks[i]||[]).map(ing=>({text:`${ing.qty||''} ${ing.unit||''} — ${ing.name||''}`.trim(),options:{fontSize:(fit.ingredients?.fontPt||9),fontFace:'Century Gothic',breakLine:true,paraSpaceAfterPt:0}}));
+            slide.addText(ingText.length?ingText:[{text:first?'No ingredients listed.':'No additional ingredients on this page.',options:{fontSize:8,color:'777777'}}],{x:left,y:first?.95:1.25,w:ingW,h:first?3.55:3.1,valign:'top',wrap:true,margin:0});
+            slide.addText(first?'PREPARATION':'PREPARATION — CONTINUED',{x:prepX,y:first?.60:.9,w:prepW,h:first?.328:.3,fontSize:12,bold:true,fontFace:'Century Gothic',charSpacing:2,margin:0});
+            slide.addText(stepChunks[i].length?preparationRunsForPptx(stepChunks[i],fit.steps.fontPt):'',{x:prepX,y:first?.95:1.25,w:prepW,h:first?3.561:(i===pages-1?2.65:3.25),fontSize:fit.steps.fontPt,fontFace:'Century Gothic',valign:'top',wrap:true,margin:0,breakLine:false});
+            if(i===pages-1){
+                const tips=richTextToPlainText(normalizeExportHtml(menu.tipsNotes||''),{dedupeAdjacentLines:false});
+                if(first){
+                    slide.addText([{text:'HACCP: ',options:{bold:true}},{text:haccpBody,options:{bold:false}}],{x:.3,y:4.59,w:5.561,h:.85,fontSize:7.5,fontFace:'Century Gothic',wrap:true,margin:.02,align:'center',valign:'mid'});
+                    if(tips){
+                        slide.addShape(pptx.ShapeType.rect,{x:5.971,y:4.59,w:3.629,h:.85,line:{color:'CCCCCC'},fill:{color:'FFFFFF'}});
+                        slide.addText('TIPS / NOTES: '+tips,{x:6.081,y:4.64,w:3.458,h:.72,fontSize:fit.tips.fontPt,fontFace:'Century Gothic',margin:.02,wrap:true,valign:'mid'});
+                    }
+                } else {
+                    if(tips){slide.addShape(pptx.ShapeType.rect,{x:prepX,y:3.95,w:prepW,h:.55,line:{color:'CCCCCC'},fill:{color:'FFFFFF'}});slide.addText('TIPS / NOTES: '+tips,{x:prepX+.05,y:4.0,w:prepW-.1,h:.45,fontSize:fit.tips.fontPt,fontFace:'Century Gothic',margin:.02,wrap:true});}
+                    slide.addText([{text:'HACCP: ',options:{bold:true}},{text:haccpBody,options:{bold:false}}],{x:.3,y:4.72,w:9.3,h:.72,fontSize:7.5,fontFace:'Century Gothic',wrap:true,margin:.02});
+                }
+            }
         }
     });
     pptx.writeFile({fileName:`MenuItemRecipes_${Date.now()}.pptx`});
