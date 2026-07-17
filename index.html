@@ -427,6 +427,12 @@
             <div class="table-tools">
                 <h3>Variance by Item</h3>
                 <div class="filter-controls" style="flex-wrap:nowrap;justify-content:flex-end;">
+                    <select id="varianceReportingGroupFilter" onchange="renderVarianceTable()" style="width:auto;min-width:150px;padding:6px;border-radius:4px;">
+                        <option value="All">All Reporting Groups</option>
+                        <option value="Food">Food</option>
+                        <option value="LWB">LWB</option>
+                        <option value="Non Alc">Non Alc</option>
+                    </select>
                     <input type="text" id="varianceSearchInput" class="search-bar" placeholder="Search items..." oninput="renderVarianceTable()" style="width:220px;min-width:180px;">
                     <select id="varianceSortMode" onchange="renderVarianceTable()" style="width:auto;min-width:220px;padding:6px;border-radius:4px;">
                         <option value="alpha">Sort: Alphabetical A-Z</option>
@@ -462,8 +468,8 @@
         </div>
 
         <div id="items" class="tab-content">
-            <h2>Item Master (Global)</h2>
-            <p style="color: #7f8c8d; font-size: 0.9rem; margin-top: -10px;">Items created here are available to all properties.</p>
+            <h2>Item Master (<span class="display-property-name"></span>)</h2>
+            <p style="color: #7f8c8d; font-size: 0.9rem; margin-top: -10px;">Showing Global Items plus items assigned to the active property. Item availability is set automatically from the category default.</p>
             <div class="collapsible-workflow"><button type="button" class="workflow-toggle" onclick="toggleWorkflowPanel('itemFormPanel',this)">+ Add New Item</button><div id="itemFormPanel" class="workflow-panel">
             <div class="form-section">
                                 <form id="itemForm">
@@ -1134,6 +1140,8 @@
         </div>
     </div>
 
+    <div id="copyItemPropertyModal" class="modal"><div class="modal-content small"><div class="modal-header"><h2>Copy Item to Property</h2><span class="close" onclick="closeModal('copyItemPropertyModal')">&times;</span></div><input type="hidden" id="copyItemSourceId"><div class="form-group"><label>Destination Property</label><select id="copyItemTargetProperty"></select></div><button class="btn-submit" onclick="executeCopyItemToProperty()">Create Independent Copy</button></div></div>
+    <div id="recipeItemMappingModal" class="modal"><div class="modal-content" style="width:70%;max-width:850px"><div class="modal-header"><h2>Map Items for Destination Property</h2><span class="close" onclick="cancelRecipeCopyMapping()">&times;</span></div><p id="recipeMappingIntro"></p><div id="recipeMappingRows"></div><button class="btn-submit" onclick="completeRecipeCopyMapping()">Copy Recipe</button></div></div>
     <script src="app.js"></script>
 
     <script>
