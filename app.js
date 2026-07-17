@@ -2,6 +2,7 @@
         // --- Database Arrays ---
         let propertyDatabase = ["Hotel Alpha", "Hotel Beta", "Hotel Gamma"];
         let categoryDatabase = ["Food", "Liquor", "Wine", "Beer"];
+        let categorySettings = {}; // { [category]: { reportingGroup, defaultScope:'global'|'property' } }
         let supplierDatabase = ["Sysco", "GFS", "Local Market"];
         let packTypeDatabase = ['Case', 'Bag', 'Bottle', 'Jug', 'Each', 'Keg', 'Container']; // Global received-as pack types
         let unitDescriptorDatabase = ['Unit', 'Bag', 'Box', 'Sleeve', 'Tray', 'Portion']; // Global unit-per-pack descriptors
@@ -28,12 +29,45 @@
 
         let itemCurrentPage = 1;
         const ITEMS_PER_PAGE = 100;
-        const APP_VERSION = '16.0';
+        const APP_VERSION = '17.0';
         const APP_STORAGE_KEY = `fb_recipe_cogs_manager_v${APP_VERSION.replace('.', '_')}`;
-        const LEGACY_STORAGE_KEYS = ['fb_recipe_cogs_manager_v15', 'fb_recipe_cogs_manager_v15_0'];
+        const LEGACY_STORAGE_KEYS = ['fb_recipe_cogs_manager_v16_0', 'fb_recipe_cogs_manager_v16', 'fb_recipe_cogs_manager_v15', 'fb_recipe_cogs_manager_v15_0'];
 
         // --- PROPERTY & CATEGORY MANAGEMENT LOGIC ---
+        const REPORTING_GROUPS = ['Food','LWB','Non Alc','Unassigned'];
+        function inferCategorySettings(category) {
+            const c = String(category || '').trim().toLowerCase();
+            if (c === 'food') return { reportingGroup:'Food', defaultScope:'global' };
+            if (['liquor','wine','beer'].includes(c)) return { reportingGroup:'LWB', defaultScope:'property' };
+            if (c === 'non alcoholic') return { reportingGroup:'Non Alc', defaultScope:'global' };
+            return { reportingGroup:'Unassigned', defaultScope:'global' };
+        }
+        function ensureCategorySettings() {
+            if (!categorySettings || typeof categorySettings !== 'object') categorySettings = {};
+            categoryDatabase.forEach(cat => { categorySettings[cat] = { ...inferCategorySettings(cat), ...(categorySettings[cat] || {}) }; });
+            Object.keys(categorySettings).forEach(cat => { if (!categoryDatabase.includes(cat)) delete categorySettings[cat]; });
+        }
+        function getCategorySetting(category) { ensureCategorySettings(); return categorySettings[category] || inferCategorySettings(category); }
+        function isItemAvailableForProperty(item, property=currentProperty) { return !item || item.scope !== 'property' || item.property === property; }
+        function visibleItemsForProperty(property=currentProperty) { return itemDatabase.filter(i => isItemAvailableForProperty(i, property)); }
+        function itemScopesOverlap(a,b) { return a.scope !== 'property' || b.scope !== 'property' || a.property === b.property; }
+        function assignAutomaticItemScope(item, category=item.category) {
+            const cfg=getCategorySetting(category);
+            item.scope=cfg.defaultScope === 'property' ? 'property' : 'global';
+            item.property=item.scope === 'property' ? currentProperty : '';
+            return item;
+        }
+        function migrateLegacyItemAvailability() {
+            ensureCategorySettings();
+            itemDatabase.forEach(item => {
+                if (item.scope === 'global' || item.scope === 'property') return;
+                if (['Liquor','Wine','Beer'].includes(item.category)) { item.scope='property'; item.property=item.name === 'Keg Bud Light CNPR' ? 'Peace River CN' : 'Kingsway CN'; }
+                else { item.scope='global'; item.property=''; }
+            });
+        }
                    function initSettings() {
+            ensureCategorySettings();
+            migrateLegacyItemAvailability();
             updatePropertyDropdowns();
             renderPropertyTable();
             updateUIPropertyNames();
@@ -530,6 +564,7 @@ function executeBulkExport() {
                 currentProperty: currentProperty,
                 propertyDatabase: Array.isArray(propertyDatabase) ? [...propertyDatabase] : [],
                 categoryDatabase: Array.isArray(categoryDatabase) ? [...categoryDatabase] : [],
+                categorySettings: (categorySettings && typeof categorySettings === 'object') ? categorySettings : {},
                 supplierDatabase: Array.isArray(supplierDatabase) ? [...supplierDatabase] : [],
                 packTypeDatabase: Array.isArray(packTypeDatabase) ? [...packTypeDatabase] : [],
                 unitDescriptorDatabase: Array.isArray(unitDescriptorDatabase) ? [...unitDescriptorDatabase] : [],
@@ -549,6 +584,7 @@ function executeBulkExport() {
             if (!data || typeof data !== 'object') throw new Error('Invalid data file.');
             propertyDatabase = Array.isArray(data.propertyDatabase) ? data.propertyDatabase : [];
             categoryDatabase = Array.isArray(data.categoryDatabase) ? data.categoryDatabase : [];
+            categorySettings = (data.categorySettings && typeof data.categorySettings === 'object') ? data.categorySettings : {};
             supplierDatabase = Array.isArray(data.supplierDatabase) ? data.supplierDatabase : ['Sysco', 'GFS', 'Local Market'];
             packTypeDatabase = Array.isArray(data.packTypeDatabase) ? data.packTypeDatabase : ['Case', 'Bag', 'Bottle', 'Jug', 'Each', 'Keg', 'Container'];
             unitDescriptorDatabase = Array.isArray(data.unitDescriptorDatabase) ? data.unitDescriptorDatabase : ['Unit', 'Bag', 'Box', 'Sleeve', 'Tray', 'Portion'];
@@ -572,6 +608,8 @@ function executeBulkExport() {
             reconcilePrepCategories();
             sanitizePlainTextFields(itemDatabase, ['id','name','sku','supplier','category','status','packType','unitDescriptor','unitMeasure','recipeMeasure','priceLastUpdated']);
             itemDatabase.forEach(item => { if (!item.unitDescriptor) item.unitDescriptor = 'Unit'; if (!Array.isArray(item.customConversions)) item.customConversions = []; });
+            ensureCategorySettings();
+            migrateLegacyItemAvailability();
             sanitizePlainTextFields(prepDatabase, ['id','property','name','category','yieldUnit','shelfLife','usage','usageUnit','portionUnit']);
             sanitizePlainTextFields(menuDatabase, ['id','property','name','category','cookTime']);
             sanitizePlainTextFields(propertyMenuDatabase, ['id','property','name']);
@@ -1256,7 +1294,7 @@ function executeBulkExport() {
 				
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td><strong>${menu.name}</strong></td>
+                    <td><strong>${menu.name}</strong>${menu.incompleteMissingItems?.length ? ` <span style="font-size:.72rem;color:#e74c3c;font-weight:bold">[INCOMPLETE: ${escapeHtml(menu.incompleteMissingItems.join(', '))}]</span>` : ''}</td>
                     <td>${totals.categoryCount}</td>
                     <td>${totals.itemCount}</td>
                     <td>$${totals.sales.toFixed(2)}</td>
@@ -1641,27 +1679,54 @@ function executeBulkExport() {
         function renderCategoryTable() {
             const tbody = document.getElementById('categoryTableBody');
             if (!tbody) return;
-
-            tbody.innerHTML = '';
+            ensureCategorySettings(); tbody.innerHTML = '';
             categoryDatabase.forEach(cat => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td style="padding: 8px 0;"><strong>${cat}</strong></td>
-                    <td style="text-align: right; padding: 8px 0;">
-                        <button class="action-btn" onclick="editCategory('${cat}')">Edit</button>
-                        <button class="action-btn" style="background-color: var(--cancel);" onclick="deleteCategory('${cat}')">X</button>
-                    </td>`;
+                const cfg=getCategorySetting(cat), tr=document.createElement('tr');
+                tr.innerHTML = `<td style="padding:8px 0"><strong>${escapeHtml(cat)}</strong><div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap"><select onchange="changeCategoryReportingGroup('${escapeHtml(cat)}',this.value)" style="width:auto"><option value="Food" ${cfg.reportingGroup==='Food'?'selected':''}>Report: Food</option><option value="LWB" ${cfg.reportingGroup==='LWB'?'selected':''}>Report: LWB</option><option value="Non Alc" ${cfg.reportingGroup==='Non Alc'?'selected':''}>Report: Non Alc</option><option value="Unassigned" ${cfg.reportingGroup==='Unassigned'?'selected':''}>Report: Unassigned</option></select><select onchange="requestCategoryDefaultScopeChange('${escapeHtml(cat)}',this.value)" style="width:auto"><option value="global" ${cfg.defaultScope==='global'?'selected':''}>New items: Global</option><option value="property" ${cfg.defaultScope==='property'?'selected':''}>New items: Active Property</option></select></div></td><td style="text-align:right;padding:8px 0"><button class="action-btn" onclick="editCategory('${escapeHtml(cat)}')">Edit</button><button class="action-btn" style="background-color:var(--cancel)" onclick="deleteCategory('${escapeHtml(cat)}')">X</button></td>`;
                 tbody.appendChild(tr);
             });
-
-            updateItemCategoryDropdown();
-            updateItemCategoryFilterDropdown();
+            updateItemCategoryDropdown(); updateItemCategoryFilterDropdown(); updateVarianceReportingGroupFilter();
         }
+        function changeCategoryReportingGroup(cat,value){ categorySettings[cat]={...getCategorySetting(cat),reportingGroup:value}; renderVarianceTable(); saveAllDataToBrowser(false); }
+        function requestCategoryDefaultScopeChange(cat,newScope){
+            const cfg=getCategorySetting(cat); if(cfg.defaultScope===newScope)return;
+            const items=itemDatabase.filter(i=>i.category===cat);
+            if(!items.length){cfg.defaultScope=newScope;categorySettings[cat]=cfg;saveAllDataToBrowser(false);return;}
+            if(!confirm(`Change the default for "${cat}"?
 
+You will be asked where each existing item should remain. Enter ALL to keep an item Global, or enter an exact property name to make it property-specific. Cancel at any item to stop without applying changes.`)){renderCategoryTable();return;}
+            const plan=[];
+            for(const item of items){
+                const current=item.scope==='property'?item.property:'ALL';
+                const answer=prompt(`Item: ${item.name}
+Current availability: ${current}
+
+Enter ALL for Global, or one exact property name:
+${propertyDatabase.join('\n')}`,current);
+                if(answer===null){renderCategoryTable();return;}
+                const value=plainText(answer);
+                if(value.toUpperCase()!=='ALL'&&!propertyDatabase.includes(value)){alert(`"${value}" is not a valid property. No changes were applied.`);renderCategoryTable();return;}
+                plan.push({item,target:value.toUpperCase()==='ALL'?'ALL':value});
+            }
+            for(const x of plan){
+                if(x.target==='ALL')continue;
+                const affected=getItemRecipeUsageAcrossProperties(x.item.id).filter(u=>u.property!==x.target);
+                if(affected.length){alert(`Cannot restrict "${x.item.name}" to ${x.target}. It is used by recipes at: ${[...new Set(affected.map(a=>a.property))].join(', ')}. Reassign those recipes first.`);renderCategoryTable();return;}
+            }
+            plan.forEach(x=>{if(x.target==='ALL'){x.item.scope='global';x.item.property='';}else{x.item.scope='property';x.item.property=x.target;}});
+            cfg.defaultScope=newScope;categorySettings[cat]=cfg;renderCategoryTable();renderItemTable();renderVarianceTable();saveAllDataToBrowser(false);showToast(`Category default and ${plan.length} existing item assignment(s) updated.`,'success');
+        }
+        function updateVarianceReportingGroupFilter(){
+            const sel=document.getElementById('varianceReportingGroupFilter');if(!sel)return;const current=sel.value||'All';
+            const hasUnassigned=visibleItemsForProperty().some(i=>getCategorySetting(i.category).reportingGroup==='Unassigned');
+            sel.innerHTML='<option value="All">All Reporting Groups</option><option value="Food">Food</option><option value="LWB">LWB</option><option value="Non Alc">Non Alc</option>'+(hasUnassigned?'<option value="Unassigned">Unassigned</option>':'');
+            sel.value=[...sel.options].some(o=>o.value===current)?current:'All';
+        }
         function addCategory() {
             const val = plainText(document.getElementById('newCategoryName').value);
             if (val && !categoryDatabase.includes(val)) {
                 categoryDatabase.push(val);
+                categorySettings[val]=inferCategorySettings(val);
                 categoryDatabase.sort((a, b) => a.localeCompare(b));
                 document.getElementById('newCategoryName').value = '';
                 renderCategoryTable();
@@ -1682,6 +1747,8 @@ function executeBulkExport() {
                 const idx = categoryDatabase.indexOf(oldCat);
                 if (idx > -1) {
                     categoryDatabase[idx] = newCat.trim();
+                    categorySettings[newCat.trim()] = categorySettings[oldCat] || inferCategorySettings(newCat.trim());
+                    delete categorySettings[oldCat];
                     categoryDatabase.sort((a, b) => a.localeCompare(b));
                     itemDatabase.forEach(item => {
                         if (item.category === oldCat) item.category = newCat.trim();
@@ -1696,6 +1763,7 @@ function executeBulkExport() {
         function deleteCategory(cat) {
             if (confirm(`Are you sure you want to delete the category '${cat}'?`)) {
                 categoryDatabase = categoryDatabase.filter(c => c !== cat);
+                delete categorySettings[cat];
                 renderCategoryTable();
                 renderItemTable();
                 saveAllDataToBrowser(false);
@@ -2084,6 +2152,7 @@ function executeBulkExport() {
                 prepDatabase.forEach(p => { if(p.property === oldName) p.property = newName; });
                 menuDatabase.forEach(m => { if(m.property === oldName) m.property = newName; });
                 propertyMenuDatabase.forEach(m => { if(m.property === oldName) m.property = newName; });
+                itemDatabase.forEach(i => { if(i.scope === 'property' && i.property === oldName) i.property = newName; });
                 
                 if (currentProperty === oldName) currentProperty = newName;
             } else {
@@ -2123,6 +2192,10 @@ function executeBulkExport() {
                 prepDatabase = prepDatabase.filter(p => p.property !== propName);
                 menuDatabase = menuDatabase.filter(m => m.property !== propName);
                 propertyMenuDatabase = propertyMenuDatabase.filter(m => m.property !== propName);
+                const ownedItems=itemDatabase.filter(i=>i.scope==='property'&&i.property===propName);
+                const usedOwned=ownedItems.filter(i=>getItemRecipeUsageAcrossProperties(i.id).length);
+                if(usedOwned.length){alert('Cannot delete this property because property items are still used by recipes: '+usedOwned.map(i=>i.name).join(', '));return;}
+                itemDatabase=itemDatabase.filter(i=>!(i.scope==='property'&&i.property===propName));
                 initSettings();
                 renderPrepTable();
                 renderMenuTable();
@@ -2184,55 +2257,11 @@ function executeBulkExport() {
         }
 
         function executeSelectiveClone() {
-            const selectedTargets = Array.from(document.querySelectorAll('.clone-target-cb:checked')).map(cb => cb.value);
-            const selectedRecipes = Array.from(document.querySelectorAll('.clone-recipe-cb:checked'));
-
-            if(selectedTargets.length === 0) { showToast('Please select at least one target property.', 'warning'); return; }
-            if(selectedRecipes.length === 0) { showToast('Please select at least one recipe to copy.', 'warning'); return; }
-
-            let cloneCount = 0;
-            const rnd = () => Math.random().toString(36).substr(2, 5); 
-
-            selectedTargets.forEach(target => {
-                selectedRecipes.forEach(cb => {
-                    const id = cb.value;
-                    const type = cb.getAttribute('data-type');
-
-                    if(type === 'prep') {
-                        const original = prepDatabase.find(p => p.id === id);
-                        if(original) {
-                            const clone = JSON.parse(JSON.stringify(original)); 
-                            clone.id = 'PREP-' + Date.now().toString() + '-' + rnd();
-                            clone.property = target;
-                            prepDatabase.push(clone);
-                            cloneCount++;
-                        }
-                    } else if (type === 'menu') {
-                        const original = menuDatabase.find(m => m.id === id);
-                        if(original) {
-                            const clone = JSON.parse(JSON.stringify(original)); 
-                            clone.id = 'MENU-' + Date.now().toString() + '-' + rnd();
-                            clone.property = target;
-                            menuDatabase.push(clone);
-                            cloneCount++;
-                        }
-                    }
-                });
-            });
-
-            showToast(`Copied ${cloneCount} recipe record(s) across ${selectedTargets.length} propert${selectedTargets.length > 1 ? 'ies' : 'y'}.`, 'success');
-            
-            document.querySelectorAll('.clone-target-cb, .clone-recipe-cb').forEach(cb => cb.checked = false);
-
-            renderPropertyTable();
-            updateMenuCategoryFilterOptions();
-            if (selectedTargets.includes(currentProperty)) {
-                renderPrepTable();
-                renderMenuTable();
-            }
-            saveAllDataToBrowser(false);
+            const targets=Array.from(document.querySelectorAll('.clone-target-cb:checked')).map(cb=>cb.value), selected=Array.from(document.querySelectorAll('.clone-recipe-cb:checked')).map(cb=>({id:cb.value,type:cb.getAttribute('data-type')}));
+            if(!targets.length||!selected.length){showToast('Select at least one target property and one recipe.','warning');return;}
+            const jobs=[];targets.forEach(target=>selected.forEach(x=>jobs.push({...x,target})));let index=0;
+            const next=()=>{if(index>=jobs.length){renderPropertyTable();renderCloneLists();saveAllDataToBrowser(false);showToast(`Finished ${jobs.length} recipe copy job(s).`,'success');return;}const j=jobs[index++],db=j.type==='prep'?prepDatabase:menuDatabase,original=db.find(r=>r.id===j.id);if(!original){next();return;}startRecipeCopy(original,j.type,j.target,next);};next();
         }
-
         // --- GLOBAL SELECTOR ---
                 document.getElementById('globalPropertySelector').addEventListener('change', function(e) {
             currentProperty = e.target.value;
@@ -2670,7 +2699,7 @@ function executeBulkExport() {
         function getVarianceScopeItems() {
             const usageMap = calculateTheoreticalUsageForProperty(currentProperty);
             const usedItemIds = new Set(Object.keys(usageMap));
-            return itemDatabase.filter(item => usedItemIds.has(item.id)).map(item => {
+            return visibleItemsForProperty().filter(item => usedItemIds.has(item.id)).map(item => {
                 const theoreticalQty = usageMap[item.id]?.theoreticalQty || 0;
                 const actualQty = calculateActualUsage(currentProperty, item);
                 const varianceQty = actualQty - theoreticalQty;
@@ -2875,7 +2904,9 @@ function executeBulkExport() {
 
             const usageMap = calculateTheoreticalUsageForProperty(currentProperty);
             const usedItemIds = new Set(Object.keys(usageMap));
-            let items = itemDatabase.filter(item => usedItemIds.has(item.id));
+            updateVarianceReportingGroupFilter();
+            const groupFilter=document.getElementById('varianceReportingGroupFilter')?.value || 'All';
+            let items = visibleItemsForProperty().filter(item => usedItemIds.has(item.id) && (groupFilter==='All' || getCategorySetting(item.category).reportingGroup===groupFilter));
             if (searchText) items = items.filter(item => (item.name || '').toLowerCase().includes(searchText));
 
             let rows = items.map(item => {
@@ -3188,7 +3219,8 @@ function executeBulkExport() {
                 const skuConflict = itemDatabase.find(item =>
                     item.sku &&
                     item.sku.trim().toLowerCase() === enteredSku.toLowerCase() &&
-                    item.id !== id
+                    item.id !== id &&
+                    itemScopesOverlap(item, itemDatabase.find(i => i.id === id) || { scope: getCategorySetting(document.getElementById('itemCategory').value).defaultScope === 'property' ? 'property' : 'global', property: currentProperty })
                 );
                 if (skuConflict) {
                     alert(`⚠️ SKU "${enteredSku}" is already assigned to "${skuConflict.name}". Please use a unique SKU or leave the field blank.`);
@@ -3212,6 +3244,8 @@ function executeBulkExport() {
                 sku: plainText(document.getElementById('itemSku').value),
                 supplier: document.getElementById('itemSupplier').value,
                 category: document.getElementById('itemCategory').value,
+                scope: existingItem?.scope || (getCategorySetting(document.getElementById('itemCategory').value).defaultScope === 'property' ? 'property' : 'global'),
+                property: existingItem?.property || (getCategorySetting(document.getElementById('itemCategory').value).defaultScope === 'property' ? currentProperty : ''),
                 status: document.getElementById('itemStatus').value,
                 cost: newCost,
                 priceLastUpdated,
@@ -4126,7 +4160,7 @@ function downloadPriceUpdateReviewCsv() {
                 const skuConflict = itemDatabase.find(item =>
                     item.sku &&
                     item.sku.trim().toLowerCase() === enteredSku.toLowerCase() &&
-                    item.id !== id
+                    item.id !== id && itemScopesOverlap(item, itemDatabase.find(i => i.id === id) || {})
                 );
                 if (skuConflict) {
                     alert(`⚠️ SKU "${enteredSku}" is already assigned to "${skuConflict.name}". Please use a unique SKU or leave the field blank.`);
@@ -4314,7 +4348,7 @@ function downloadPriceUpdateReviewCsv() {
             const supplierFilter = document.getElementById('filterItemSupplier')?.value || 'All';
             const statusFilter = document.getElementById('filterItemStatus')?.value || 'All';
 
-            let filteredData = itemDatabase.filter(item => {
+            let filteredData = visibleItemsForProperty().filter(item => {
                 const matchesText =
                     (item.name || '').toLowerCase().includes(filterText) ||
                     (item.sku || '').toLowerCase().includes(filterText) ||
@@ -4355,7 +4389,7 @@ function downloadPriceUpdateReviewCsv() {
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td><strong class="item-usage-link" onclick="openItemRecipeUsage('${item.id}')" title="Click to see every recipe and property where this item is used">${escapeHtml(item.name)}</strong>${item.excludeFromVariance ? ' <span style="font-size:0.7rem;color:#e74c3c;">(no variance)</span>' : ''}</td>
+                    <td><strong class="item-usage-link" onclick="openItemRecipeUsage('${item.id}')" title="Click to see every recipe and property where this item is used">${escapeHtml(item.name)}</strong> <span style="font-size:.68rem;color:${item.scope==='property'?'#8e44ad':'#18bc9c'};font-weight:bold">[${item.scope==='property'?escapeHtml(item.property):'Global'}]</span>${item.excludeFromVariance ? ' <span style="font-size:0.7rem;color:#e74c3c;">(no variance)</span>' : ''}</td>
                     <td>${skuDisplay}</td>
                     <td>${supplierDisplay}</td>
                     <td>${item.category || '—'}</td>
@@ -4367,6 +4401,7 @@ function downloadPriceUpdateReviewCsv() {
                     <td style="color: #18bc9c; font-weight: bold;">${costPerRecipeUnit}</td>
                                         <td>
                         <button class="action-btn" onclick="editItem('${item.id}')">Edit</button>
+                        <button class="action-btn" style="background-color:var(--info)" onclick="openCopyItemToProperty('${item.id}')">Copy</button>
                         <button class="action-btn" style="background-color: var(--cancel);" onclick="deleteItem('${item.id}')">Delete</button>
                     </td>
                 `;
@@ -4374,6 +4409,19 @@ function downloadPriceUpdateReviewCsv() {
             });
         }
 
+
+        function openCopyItemToProperty(itemId){
+            const item=itemDatabase.find(i=>i.id===itemId);if(!item)return;
+            const sel=document.getElementById('copyItemTargetProperty');sel.innerHTML='';
+            propertyDatabase.filter(p=>p!==item.property).sort().forEach(p=>{const o=document.createElement('option');o.value=p;o.textContent=p;sel.appendChild(o);});
+            if(!sel.options.length){showToast('No other property is available.','warning');return;}
+            document.getElementById('copyItemSourceId').value=itemId;document.getElementById('copyItemPropertyModal').style.display='block';
+        }
+        function executeCopyItemToProperty(){
+            const source=itemDatabase.find(i=>i.id===document.getElementById('copyItemSourceId').value), target=document.getElementById('copyItemTargetProperty').value;if(!source||!target)return;
+            const clone=JSON.parse(JSON.stringify(source));clone.id=generateId('ITEM');clone.scope='property';clone.property=target;clone.name=source.name;clone.sku='';clone.priceLastUpdated=new Date().toISOString();clone.priceHistory=[];
+            itemDatabase.push(clone);closeModal('copyItemPropertyModal');saveAllDataToBrowser(false);renderItemTable();showToast(`Independent copy created for ${target}. Switch to that property to review and edit it.`,'success');
+        }
         // --- PREP RECIPE SAVING LOGIC (Localized) ---
         document.getElementById('prepForm').addEventListener('submit', function(e) {
             e.preventDefault();
@@ -4421,7 +4469,8 @@ function downloadPriceUpdateReviewCsv() {
                 portionUnit, 
                 totalCost, 
                 costPerUnit, 
-                ingredients: [...currentPrepIngredients] 
+                ingredients: [...currentPrepIngredients],
+                incompleteMissingItems: [...new Set(currentPrepIngredients.map(i=>i.missingSourceItemName).filter(Boolean))]
             };
 
             const existingIndex = prepDatabase.findIndex(p => p.id === id);
@@ -4474,7 +4523,7 @@ function downloadPriceUpdateReviewCsv() {
                     viewPrepRecipe(prep.id);
                 };
                 row.innerHTML = `
-                    <td><strong>${prep.name}</strong>${prep.category ? ` <span style=\"font-size:0.72rem;color:#18bc9c;font-weight:bold;\">[${escapeHtml(prep.category)}]</span>` : ''}${prep.includeInExport === false ? ' <span style=\"font-size:0.7rem;color:#e74c3c;\">(excluded from export)</span>' : ''}${exportStatusHtml(evaluateRecipeFit(prep,'prep'))}</td>
+                    <td><strong>${prep.name}</strong>${prep.incompleteMissingItems?.length ? ` <span style="font-size:.72rem;color:#e74c3c;font-weight:bold">[INCOMPLETE: ${escapeHtml(prep.incompleteMissingItems.join(', '))}]</span>` : ''}${prep.category ? ` <span style=\"font-size:0.72rem;color:#18bc9c;font-weight:bold;\">[${escapeHtml(prep.category)}]</span>` : ''}${prep.includeInExport === false ? ' <span style=\"font-size:0.7rem;color:#e74c3c;\">(excluded from export)</span>' : ''}${exportStatusHtml(evaluateRecipeFit(prep,'prep'))}</td>
                     <td>${prep.yieldAmount} ${prep.yieldUnit}</td>
                     <td>${shelfLifeDisplay}</td>
                     <td style="color: #18bc9c; font-weight: bold;">$${calculatePrepCostPerUnit(prep).toFixed(4)} / ${prep.yieldUnit === 'Each' ? 'Portion' : prep.yieldUnit}</td>
@@ -4580,7 +4629,7 @@ function downloadPriceUpdateReviewCsv() {
                    const steps = cleanRichText(document.getElementById('menuSteps').innerHTML);
         const tipsNotes = cleanRichText(document.getElementById('menuTipsNotes').innerHTML);
         const cookTime = document.getElementById('cookTime').value;
-const menuData = { id, property: currentProperty, name, category, targetPrice, foodCost, costPercentage, steps, tipsNotes, cookTime, ingredients: [...currentMenuIngredients] };
+const menuData = { id, property: currentProperty, name, category, targetPrice, foodCost, costPercentage, steps, tipsNotes, cookTime, ingredients: [...currentMenuIngredients], incompleteMissingItems: [...new Set(currentMenuIngredients.map(i=>i.missingSourceItemName).filter(Boolean))] };
 
             const existingIndex = menuDatabase.findIndex(m => m.id === id);
             if (existingIndex > -1) menuDatabase[existingIndex] = menuData;
@@ -4865,7 +4914,8 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                 steps: cleanRichText(document.getElementById('editMenuModalSteps').innerHTML),
                 tipsNotes: cleanRichText(document.getElementById('editMenuModalTipsNotes').innerHTML),
                 cookTime: plainText(document.getElementById('editMenuModalCookTime').value),
-                ingredients
+                ingredients,
+                incompleteMissingItems: [...new Set(ingredients.map(i=>i.missingSourceItemName).filter(Boolean))]
             };
             menuDatabase[existingIndex] = menuData;
             cancelEditMenuModal();
@@ -4927,7 +4977,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
             
             let combinedData = [];
 
-            itemDatabase.filter(item => item.name.toLowerCase().includes(filterText)).forEach(item => {
+            visibleItemsForProperty().filter(item => item.name.toLowerCase().includes(filterText)).forEach(item => {
                 combinedData.push({ id: item.id, name: item.name, packBreakdown: `${item.packType || 'Pack'} (${item.units || 0} x ${item.unitSize || 0} ${item.unitMeasure || ''})`, category: item.category, unit: (item.recipeMeasure || '').replace('_', ' '), cost: calculateUnitCost(item), type: 'raw' });
             });
 
@@ -5191,7 +5241,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                 const lineCost = getLiveIngredientTotalCost(ing);
                 totalCost += lineCost;
                 const isCredit = parseFloat(ing.qty) < 0;
-                tbody.innerHTML += `<tr${isCredit ? ' style="background-color:#fdecea;"' : ''}><td><strong>${ing.name}</strong>${isCredit ? ' <span style="font-size:0.72rem;color:#e74c3c;font-weight:bold;">(credit)</span>' : ''}</td><td>${ing.qty}</td><td>${ing.unit}</td><td style="${isCredit ? 'color:#e74c3c;font-weight:bold;' : ''}">${formatCurrency(lineCost)}</td>
+                tbody.innerHTML += `<tr${isCredit ? ' style="background-color:#fdecea;"' : ''}><td><strong>${escapeHtml(ing.missingSourceItemName ? `Missing item: ${ing.missingSourceItemName}` : ing.name)}</strong>${isCredit ? ' <span style="font-size:0.72rem;color:#e74c3c;font-weight:bold;">(credit)</span>' : ''}</td><td>${ing.qty}</td><td>${ing.unit}</td><td style="${isCredit ? 'color:#e74c3c;font-weight:bold;' : ''}">${formatCurrency(lineCost)}</td>
                 <td>
                     <button type="button" class="action-btn" style="background-color: var(--warning);" onclick="editIngredientQuantity('prep', ${index})">Edit</button>
                     <button type="button" class="action-btn" style="background-color: var(--cancel);" onclick="removeIngredient('prep', ${index})">X</button>
@@ -5211,7 +5261,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                 const lineCost = getLiveIngredientTotalCost(ing);
                 const isCredit = parseFloat(ing.qty) < 0;
                 if (!isCredit) totalCost += lineCost;
-                tbody.innerHTML += `<tr${isCredit ? ' style="background-color:#fdecea;"' : ''}><td><strong>${ing.name}</strong>${isCredit ? ' <span style="font-size:0.72rem;color:#e74c3c;font-weight:bold;">(credit)</span>' : ''}</td><td>${ing.qty}</td><td>${ing.unit}</td><td style="${isCredit ? 'color:#e74c3c;font-weight:bold;' : ''}">${formatCurrency(lineCost)}</td>
+                tbody.innerHTML += `<tr${isCredit ? ' style="background-color:#fdecea;"' : ''}><td><strong>${escapeHtml(ing.missingSourceItemName ? `Missing item: ${ing.missingSourceItemName}` : ing.name)}</strong>${isCredit ? ' <span style="font-size:0.72rem;color:#e74c3c;font-weight:bold;">(credit)</span>' : ''}</td><td>${ing.qty}</td><td>${ing.unit}</td><td style="${isCredit ? 'color:#e74c3c;font-weight:bold;' : ''}">${formatCurrency(lineCost)}</td>
                 <td>
                     <button type="button" class="action-btn" style="background-color: var(--warning);" onclick="editIngredientQuantity('menu', ${index})">Edit</button>
                     <button type="button" class="action-btn" style="background-color: var(--cancel);" onclick="removeIngredient('menu', ${index})">X</button>
@@ -5244,35 +5294,35 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
             document.getElementById('duplicateModal').style.display = 'block';
         }
 
-        function executeSingleDuplicate() {
-            const targetProperty = document.getElementById('duplicateTargetSelector').value;
-            if (targetProperty === currentProperty) { alert("You are already in " + currentProperty + ". Select a different property."); return; }
-
-            const rnd = () => Math.random().toString(36).substr(2, 5);
-
-            if (duplicateTargetType === 'prep') {
-                const original = prepDatabase.find(p => p.id === duplicateTargetId);
-                const clone = JSON.parse(JSON.stringify(original)); 
-                clone.id = 'PREP-' + Date.now().toString() + '-' + rnd(); 
-                clone.property = targetProperty; 
-                prepDatabase.push(clone);
-            } else {
-                const original = menuDatabase.find(m => m.id === duplicateTargetId);
-                const clone = JSON.parse(JSON.stringify(original)); 
-                clone.id = 'MENU-' + Date.now().toString() + '-' + rnd();
-                clone.property = targetProperty;
-                menuDatabase.push(clone);
-            }
-
-            closeModal('duplicateModal');
-            alert(`Recipe successfully copied to ${targetProperty}!`);
-            renderPropertyTable();
-            renderCloneLists();
-            saveAllDataToBrowser(false);
-            renderPropertyMenus();
-            renderSelectedPropertyMenuDetails();
-            saveAllDataToBrowser(false);
+        let pendingRecipeCopy=null;
+        function collectUnavailableRawItems(recipe,sourceProperty,targetProperty,seen=new Set(),out=new Map()){
+            (recipe?.ingredients||[]).forEach(ing=>{if(ing.type==='raw'){const item=itemDatabase.find(i=>i.id===ing.itemId);if(item&&!isItemAvailableForProperty(item,targetProperty))out.set(item.id,item);}else if(ing.type==='prep'&&!seen.has(ing.itemId)){const p=prepDatabase.find(x=>x.id===ing.itemId&&x.property===sourceProperty);if(p){seen.add(p.id);collectUnavailableRawItems(p,sourceProperty,targetProperty,seen,out);}}});return [...out.values()];
         }
+        function startRecipeCopy(original,type,targetProperty,onDone=null){
+            const missing=collectUnavailableRawItems(original,original.property,targetProperty);
+            pendingRecipeCopy={original,type,targetProperty,missing,onDone};
+            if(!missing.length){completeRecipeCopyMapping();return;}
+            document.getElementById('recipeMappingIntro').textContent=`${missing.length} item(s) are not available at ${targetProperty}. Choose replacements or leave them incomplete.`;
+            document.getElementById('recipeMappingRows').innerHTML=missing.map((src,idx)=>{const candidates=visibleItemsForProperty(targetProperty).filter(i=>i.category===src.category).sort((a,b)=>(a.name===src.name?-1:0)-(b.name===src.name?-1:0)||a.name.localeCompare(b.name));return `<div class="form-section"><strong>${escapeHtml(src.name)}</strong> <span style="color:#777">(${escapeHtml(src.category)})</span><select id="recipeMap-${idx}" data-source="${src.id}" style="margin-top:8px"><option value="">Leave incomplete — Missing item: ${escapeHtml(src.name)}</option>${candidates.map(c=>`<option value="${c.id}" ${c.name===src.name?'selected':''}>${escapeHtml(c.name)} — ${escapeHtml(c.scope==='property'?c.property:'Global')}</option>`).join('')}</select></div>`}).join('');
+            document.getElementById('recipeItemMappingModal').style.display='block';
+        }
+        function cancelRecipeCopyMapping(){pendingRecipeCopy=null;closeModal('recipeItemMappingModal');}
+        function cloneIngredientsForDestination(ingredients,sourceProperty,targetProperty,map,prepIdMap){
+            return (ingredients||[]).map(ing=>{const c={...ing};if(c.type==='raw'){const src=itemDatabase.find(i=>i.id===c.itemId);if(src&&!isItemAvailableForProperty(src,targetProperty)){const replacement=map[c.itemId];if(replacement){const ri=itemDatabase.find(i=>i.id===replacement);c.itemId=replacement;c.name=ri?.name||c.name;delete c.missingSourceItemName;}else{c.itemId=`MISSING-${c.itemId}`;c.missingSourceItemName=src.name;c.name=`Missing item: ${src.name}`;}}}else if(c.type==='prep'&&prepIdMap[c.itemId])c.itemId=prepIdMap[c.itemId];return c;});
+        }
+        function copyPrepDependency(prepId,sourceProperty,targetProperty,map,prepIdMap){
+            if(prepIdMap[prepId])return prepIdMap[prepId];const src=prepDatabase.find(p=>p.id===prepId&&p.property===sourceProperty);if(!src)return prepId;
+            (src.ingredients||[]).filter(i=>i.type==='prep').forEach(i=>copyPrepDependency(i.itemId,sourceProperty,targetProperty,map,prepIdMap));
+            const clone=JSON.parse(JSON.stringify(src));clone.id=generateId('PREP');clone.property=targetProperty;prepIdMap[prepId]=clone.id;clone.ingredients=cloneIngredientsForDestination(src.ingredients,sourceProperty,targetProperty,map,prepIdMap);clone.incompleteMissingItems=[...new Set(clone.ingredients.map(i=>i.missingSourceItemName).filter(Boolean))];prepDatabase.push(clone);return clone.id;
+        }
+        function completeRecipeCopyMapping(){
+            if(!pendingRecipeCopy)return;const {original,type,targetProperty,missing,onDone}=pendingRecipeCopy,map={};
+            (missing||[]).forEach((src,idx)=>{const v=document.getElementById(`recipeMap-${idx}`)?.value;if(v)map[src.id]=v;});
+            const prepIdMap={};(original.ingredients||[]).filter(i=>i.type==='prep').forEach(i=>copyPrepDependency(i.itemId,original.property,targetProperty,map,prepIdMap));
+            const clone=JSON.parse(JSON.stringify(original));clone.id=generateId(type==='prep'?'PREP':'MENU');clone.property=targetProperty;clone.ingredients=cloneIngredientsForDestination(original.ingredients,original.property,targetProperty,map,prepIdMap);clone.incompleteMissingItems=[...new Set([...(missing||[]).filter(src=>!map[src.id]).map(src=>src.name),...clone.ingredients.map(i=>i.missingSourceItemName).filter(Boolean)])];
+            (type==='prep'?prepDatabase:menuDatabase).push(clone);pendingRecipeCopy=null;closeModal('recipeItemMappingModal');renderPropertyTable();renderCloneLists();saveAllDataToBrowser(false);showToast(`Recipe copied to ${targetProperty}${clone.incompleteMissingItems.length?' with missing items flagged.':'.'}`,clone.incompleteMissingItems.length?'warning':'success');if(onDone)onDone();
+        }
+        function executeSingleDuplicate(){const targetProperty=document.getElementById('duplicateTargetSelector').value;if(targetProperty===currentProperty){alert('Select a different property.');return;}const original=(duplicateTargetType==='prep'?prepDatabase:menuDatabase).find(r=>r.id===duplicateTargetId);closeModal('duplicateModal');if(original)startRecipeCopy(original,duplicateTargetType,targetProperty);}
 
         // ── UNIT DISPLAY MAP ──────────────────────────────────────
         const unitDisplayMap = {
