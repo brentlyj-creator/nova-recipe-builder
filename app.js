@@ -5140,6 +5140,15 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
         // --- Edit Ingredient Amounts ---
         let editIngredientModalTarget = null;
         let editIngredientModalIndex = null;
+		
+		function updateEditIngredientQuantityStep() {
+		    const qtyInput = document.getElementById('editIngredientModalQty');
+		    const unitSelect = document.getElementById('editIngredientModalUnit');
+		
+		    if (!qtyInput || !unitSelect) return;
+		
+		    qtyInput.step = unitSelect.value === 'Each' ? '1' : '0.25';
+		}
 
         function buildEditIngredientUnitOptions(ing) {
             const volUnits = ['L','ML','FL_OZ','Cups','Tbsp','Tsp'];
@@ -5189,11 +5198,20 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
             document.getElementById('editIngredientModalQty').value = ing.qty;
 
             const unitSel = document.getElementById('editIngredientModalUnit');
-            const options = buildEditIngredientUnitOptions(ing);
-            unitSel.innerHTML = options.map(o => `<option value="${o.val}" ${o.val === ing.unit ? 'selected' : ''}>${o.label}</option>`).join('');
-
-            document.getElementById('editIngredientModal').style.display = 'block';
-        }
+			const options = buildEditIngredientUnitOptions(ing);
+			
+			unitSel.innerHTML = options.map(o =>
+			    `<option value="${o.val}" ${o.val === ing.unit ? 'selected' : ''}>${o.label}</option>`
+			).join('');
+			
+			// Set the quantity arrow increment for the initially selected unit.
+			updateEditIngredientQuantityStep();
+			
+			// Update the increment if the user changes the unit.
+			unitSel.onchange = updateEditIngredientQuantityStep;
+			
+			document.getElementById('editIngredientModal').style.display = 'block';
+	        }
 
         function cancelEditIngredientModal() {
             document.getElementById('editIngredientModal').style.display = 'none';
