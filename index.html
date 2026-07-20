@@ -83,10 +83,26 @@
         .recipe-row-clickable:hover { background-color: #e8f4f2 !important; }
         .item-usage-link { color: #2980b9; text-decoration: underline; cursor: pointer; }
         .item-usage-link:hover { color: #18bc9c; }
-        /* MODAL STYLES */
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
-        /* Keep the ingredient editor above parent recipe/item modals. */
-        #editIngredientModal { z-index: 2200; }
+       /* MODAL STYLES */
+			.modal {
+			*   display: none;
+			    position: fi*ed;
+			    z-index: 1000;
+			    left: 0*
+			    top: 0;
+			    width: 100%;
+			    *eight: 100%;
+			    background-color:*rgba(0,0,0,0.5);
+			}
+			
+			/* Keep ingred*ent-related child modals above par*nt recipe/item modals. */
+			#ingredi*ntModal {
+			    z-index: 2100;
+			}
+			
+			#e*itIngredientModal {
+			    z-index: 2*00;
+			}
         .modal-content { background-color: #fff; margin: 5% auto; padding: 25px; border-radius: 8px; width: 70%; max-height: 80vh; overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
         .modal-content.small { width: 400px; margin: 15% auto; }
         .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
