@@ -84,25 +84,25 @@
         .item-usage-link { color: #2980b9; text-decoration: underline; cursor: pointer; }
         .item-usage-link:hover { color: #18bc9c; }
        /* MODAL STYLES */
-			.modal {
-			*   display: none;
-			    position: fixed;
-			    z-index: 1000;
-			    left: 0*
-			    top: 0;
-			    width: 100%;
-			    *eight: 100%;
-			    background-color:*rgba(0,0,0,0.5);
-			}
-			
-			/* Keep ingredient-related child modals above parent recipe/item modals. */
-			#ingredientModal {
-			    z-index: 2100;
-			}
-			
-			#editIngredientModal {
-			    z-index: 2200;
-			}
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        /* Child ingredient modals must appear above the parent recipe editor. */
+        #ingredientModal { z-index: 2100; }
+        #editIngredientModal { z-index: 2200; }
+
+        /* Safety rule: no modal is visible until JavaScript explicitly opens it. */
+        .modal:not([style*="display: block"]) { display: none; }
+        
         .modal-content { background-color: #fff; margin: 5% auto; padding: 25px; border-radius: 8px; width: 70%; max-height: 80vh; overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
         .modal-content.small { width: 400px; margin: 15% auto; }
         .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
