@@ -498,7 +498,7 @@ function renderBulkExportList() {
         r.property === currentProperty &&
         r.includeInExport !== false &&
         (catFilter === 'All' || (r.category || '') === catFilter)
-    );
+    ).sort(alphaSortByName);
     if (recipes.length === 0) {
         list.innerHTML = '<span style="color:#777;">No prep recipes found for this filter.</span>';
     } else {
@@ -2209,53 +2209,19 @@ ${propertyDatabase.join('\n')}`,current);
             }
         }
 
+
+function alphaSortByName(a,b){return String(a?.name||'').localeCompare(String(b?.name||''),undefined,{sensitivity:'base'})}
+function toggleChecklistCategory(header){header?.parentElement?.classList.toggle('collapsed')}
+function toggleChecklistCategorySelection(event,checkbox,itemClass){event.stopPropagation();checkbox.closest('.checklist-category')?.querySelectorAll('.'+itemClass).forEach(box=>box.checked=checkbox.checked)}
+function buildCategorizedChecklist(records,{itemClass,type='',categoryLabel='Uncategorized'}){const groups=new Map();records.slice().sort(alphaSortByName).forEach(r=>{const c=String(r.category||categoryLabel);if(!groups.has(c))groups.set(c,[]);groups.get(c).push(r)});return[...groups.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([c,items])=>`<div class="checklist-category"><div class="checklist-category-header" onclick="toggleChecklistCategory(this)"><span class="category-caret">▼</span><input type="checkbox" onclick="toggleChecklistCategorySelection(event,this,'${itemClass}')"><span>${escapeHtml(c)} (${items.length})</span></div><div class="checklist-category-items">${items.map(x=>`<label><input type="checkbox" class="${itemClass}" value="${escapeHtml(x.id)}"${type?` data-type="${type}"`:''}> ${escapeHtml(x.name||'Unnamed Recipe')}</label>`).join('')}</div></div>`).join('')}
+const QUICK_CONVERSION_UNITS={volume:{L:'L',ML:'mL',FL_OZ:'fl oz',Cups:'cups',Tbsp:'tbsp',Tsp:'tsp'},weight:{KG:'kg',G:'g',LBS:'lb',OZ:'oz'}};
+function initQuickConverter(){const f=document.getElementById('quickConvertFrom');if(!f)return;f.innerHTML='<optgroup label="Volume">'+Object.entries(QUICK_CONVERSION_UNITS.volume).map(([v,t])=>`<option value="${v}">${t}</option>`).join('')+'</optgroup><optgroup label="Weight">'+Object.entries(QUICK_CONVERSION_UNITS.weight).map(([v,t])=>`<option value="${v}">${t}</option>`).join('')+'</optgroup>';f.value='L';syncQuickConversionUnits()}
+function syncQuickConversionUnits(){const f=document.getElementById('quickConvertFrom'),t=document.getElementById('quickConvertTo');if(!f||!t)return;const fam=QUICK_CONVERSION_UNITS.volume[f.value]?'volume':'weight';t.innerHTML=Object.entries(QUICK_CONVERSION_UNITS[fam]).map(([v,x])=>`<option value="${v}">${x}</option>`).join('');t.value=fam==='volume'?'ML':'G'}
+function runQuickConversion(){const q=parseFloat(document.getElementById('quickConvertQty')?.value),f=document.getElementById('quickConvertFrom')?.value,t=document.getElementById('quickConvertTo')?.value,o=document.getElementById('quickConvertOutput');if(!o)return;if(!Number.isFinite(q)){o.textContent='—';return}const r=convertQtyUnits(q,f,t);o.textContent=`${Number(r.toFixed(4)).toLocaleString()} ${UNIT_LABELS[t]||t}`}
+function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.contains('sidebar-collapsed')||!menu?.classList.contains('show')){if(menu)menu.style.top='';return}const r=trigger.getBoundingClientRect();menu.style.top=Math.max(4,Math.min(r.top,window.innerHeight-menu.scrollHeight-8))+'px';menu.style.maxHeight=(window.innerHeight-12)+'px';menu.style.overflowY='auto'}
+
         // --- SELECTIVE CLONE LOGIC ---
-        function renderCloneLists() {
-            const source = document.getElementById('cloneSource').value;
-            const recipeList = document.getElementById('cloneRecipeList');
-            const targetList = document.getElementById('cloneTargetList');
-            
-            recipeList.innerHTML = '';
-            targetList.innerHTML = '';
-
-            if(!source) {
-                recipeList.innerHTML = '<span style="color:#777; font-size:0.9rem;">Select a source property first.</span>';
-                targetList.innerHTML = '<span style="color:#777; font-size:0.9rem;">Select a source property first.</span>';
-                return;
-            }
-
-            let hasTargets = false;
-            propertyDatabase.forEach(prop => {
-                if(prop !== source) {
-                    targetList.innerHTML += `<label><input type="checkbox" value="${prop}" class="clone-target-cb"> ${prop}</label>`;
-                    hasTargets = true;
-                }
-            });
-            if(!hasTargets) targetList.innerHTML = '<span style="color:#777; font-size:0.9rem;">No other properties exist to copy to.</span>';
-
-            const sourcePreps = prepDatabase.filter(p => p.property === source);
-            const sourceMenus = menuDatabase.filter(m => m.property === source);
-
-            if(sourcePreps.length === 0 && sourceMenus.length === 0) {
-                recipeList.innerHTML = '<span style="color:#777; font-size:0.9rem;">No recipes found in this property.</span>';
-                return;
-            }
-
-            if(sourcePreps.length > 0) {
-                recipeList.innerHTML += '<strong style="display:block; margin-bottom:5px; color:var(--primary);">Prep Recipes</strong>';
-                sourcePreps.forEach(p => {
-                    recipeList.innerHTML += `<label style="margin-left: 10px;"><input type="checkbox" value="${p.id}" data-type="prep" class="clone-recipe-cb"> ${p.name}</label>`;
-                });
-            }
-
-            if(sourceMenus.length > 0) {
-                recipeList.innerHTML += '<strong style="display:block; margin-top:10px; margin-bottom:5px; color:var(--primary);">Menu Items</strong>';
-                sourceMenus.forEach(m => {
-                    recipeList.innerHTML += `<label style="margin-left: 10px;"><input type="checkbox" value="${m.id}" data-type="menu" class="clone-recipe-cb"> ${m.name}</label>`;
-                });
-            }
-        }
-
+        function renderCloneLists(){const source=document.getElementById('cloneSource').value,recipes=document.getElementById('cloneRecipeList'),targets=document.getElementById('cloneTargetList');recipes.innerHTML='';targets.innerHTML='';if(!source)return;const ts=propertyDatabase.filter(p=>p!==source).sort((a,b)=>a.localeCompare(b));targets.innerHTML=ts.length?ts.map(p=>`<label><input type="checkbox" value="${escapeHtml(p)}" class="clone-target-cb"> ${escapeHtml(p)}</label>`).join(''):'<span style="color:#777">No other properties exist to copy to.</span>';const preps=prepDatabase.filter(p=>p.property===source),menus=menuDatabase.filter(m=>m.property===source);recipes.innerHTML=(preps.length?'<strong>Prep Recipes</strong>'+buildCategorizedChecklist(preps,{itemClass:'clone-recipe-cb',type:'prep'}):'')+(menus.length?'<strong style="display:block;margin-top:10px">Menu Item Recipes</strong>'+buildCategorizedChecklist(menus,{itemClass:'clone-recipe-cb',type:'menu'}):'');if(!preps.length&&!menus.length)recipes.innerHTML='<span style="color:#777">No recipes found in this property.</span>'}
         function executeSelectiveClone() {
             const targets=Array.from(document.querySelectorAll('.clone-target-cb:checked')).map(cb=>cb.value), selected=Array.from(document.querySelectorAll('.clone-recipe-cb:checked')).map(cb=>({id:cb.value,type:cb.getAttribute('data-type')}));
             if(!targets.length||!selected.length){showToast('Select at least one target property and one recipe.','warning');return;}
@@ -2318,6 +2284,7 @@ ${propertyDatabase.join('\n')}`,current);
             if (!menu) return;
             menu.classList.toggle('show');
             if (evt?.currentTarget) evt.currentTarget.classList.toggle('open');
+            positionCollapsedFlyout(evt?.currentTarget, menu);
         }
 
         function togglePortionWeight() {
@@ -4538,6 +4505,7 @@ function downloadPriceUpdateReviewCsv() {
         }
 
         function editPrep(id) {
+            const pp=document.getElementById('prepFormPanel');if(pp&&!pp.classList.contains('show'))toggleWorkflowPanel('prepFormPanel',pp.previousElementSibling);
             const prep = prepDatabase.find(p => p.id === id);
             if(!prep) return;
             document.getElementById('editPrepId').value = prep.id;
@@ -4861,6 +4829,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
         }
 
         function editMenu(id) {
+            const mp=document.getElementById('menuItemFormPanel');if(mp&&!mp.classList.contains('show'))toggleWorkflowPanel('menuItemFormPanel',mp.previousElementSibling);
             const menu = menuDatabase.find(m => m.id === id);
             if (!menu) return;
             ensureEditMenuItemModal();
@@ -5570,6 +5539,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
             }
 
             populatePrepUsageUnit();
+            initQuickConverter();
             populateCustomConversionUnitDropdowns('customConvFromUnit', 'customConvToUnit');
             populateCustomConversionUnitDropdowns('editModalCustomConvFromUnit', 'editModalCustomConvToUnit');
             renderCustomConversionList(newItemCustomConversions, 'customConversionList', false);
@@ -5632,23 +5602,11 @@ function exportAllMenuItemsCogsPdf() {
     if (items.length === 0) return showToast('No menu items match the current filter/search.', 'warning');
     generateMenuItemsCogsPdf(items, `${currentProperty || 'Property'} All Menu Item COGS %`);
 }
-function openBulkMenuCogsModal() {
-    const list = document.getElementById('bulkMenuCogsList');
-    list.innerHTML = '';
-    document.getElementById('bulkMenuCogsSelectAll').checked = false;
-    const menus = menuDatabase.filter(menu => menu.property === currentProperty).sort((a,b) => (a.name || '').localeCompare(b.name || ''));
-    if (menus.length === 0) list.innerHTML = '<span style="color:#777;">No menu item recipes found for this property.</span>';
-    else menus.forEach(menu => { const label = document.createElement('label'); label.style.cssText = 'display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid #eee; cursor:pointer;'; label.innerHTML = `<input type="checkbox" class="bulk-menu-cogs-cb" value="${menu.id}"> ${escapeHtml(menu.name || 'Unnamed Item')}`; list.appendChild(label); });
-    document.getElementById('bulkMenuCogsModal').style.display = 'block';
-}
-function toggleBulkMenuCogsSelectAll(cb) { document.querySelectorAll('.bulk-menu-cogs-cb').forEach(box => box.checked = cb.checked); }
-function executeBulkMenuCogsExport() {
-    const selected = [...document.querySelectorAll('.bulk-menu-cogs-cb:checked')].map(cb => cb.value);
-    if (selected.length === 0) return showToast('Please select at least one menu item.', 'warning');
-    const items = selected.map(id => getMenuForExport(id)).filter(Boolean);
-    generateMenuItemsCogsPdf(items, `${currentProperty || 'Property'} Bulk Menu Item COGS %`);
-    closeModal('bulkMenuCogsModal');
-}
+function populateMenuExportCategoryFilter(id){const s=document.getElementById(id);if(!s)return;const cats=[...new Set(menuDatabase.filter(m=>m.property===currentProperty).map(m=>m.category||'Uncategorized'))].sort((a,b)=>a.localeCompare(b));s.innerHTML='<option value="All">All Categories</option>'+cats.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
+function renderBulkMenuCogsList(){const l=document.getElementById('bulkMenuCogsList'),f=document.getElementById('bulkMenuCogsCategoryFilter')?.value||'All';document.getElementById('bulkMenuCogsSelectAll').checked=false;const a=menuDatabase.filter(m=>m.property===currentProperty&&(f==='All'||(m.category||'Uncategorized')===f)).sort(alphaSortByName);l.innerHTML=a.length?buildCategorizedChecklist(a,{itemClass:'bulk-menu-cogs-cb'}):'<span style="color:#777">No menu items found.</span>'}
+function openBulkMenuCogsModal(){populateMenuExportCategoryFilter('bulkMenuCogsCategoryFilter');renderBulkMenuCogsList();document.getElementById('bulkMenuCogsModal').style.display='block'}
+function toggleBulkMenuCogsSelectAll(cb){document.querySelectorAll('.bulk-menu-cogs-cb').forEach(x=>x.checked=cb.checked)}
+function executeBulkMenuCogsExport(){const ids=[...document.querySelectorAll('.bulk-menu-cogs-cb:checked')].map(x=>x.value);if(!ids.length)return showToast('Please select at least one menu item.','warning');generateMenuItemsCogsPdf(ids.map(getMenuForExport).filter(Boolean).sort(alphaSortByName),`${currentProperty||'Property'} Bulk Menu Item COGS %`);closeModal('bulkMenuCogsModal')}
 
 // ─── MENU ITEM PPTX EXPORT ───────────────────────────────────────────────────
 
@@ -5694,31 +5652,9 @@ function exportAllMenuItemsPptx() {
     generateMenuItemPptx(items);
 }
 
-function openBulkMenuPptxModal() {
-    const list = document.getElementById("bulkMenuPptxList");
-    list.innerHTML = "";
-    document.getElementById("bulkMenuPptxSelectAll").checked = false;
-
-    const menus = menuDatabase
-        .filter(menu => menu.property === currentProperty)
-        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-
-    if (menus.length === 0) {
-        list.innerHTML = '<span style="color:#777;">No menu item recipes found for this property.</span>';
-    } else {
-        menus.forEach(menu => {
-            const label = document.createElement("label");
-            label.style.cssText = "display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid #eee; cursor:pointer;";
-            label.innerHTML = `<input type="checkbox" class="bulk-menu-pptx-cb" value="${menu.id}"> ${menu.name || "Unnamed Item"}`;
-            list.appendChild(label);
-        });
-    }
-    document.getElementById("bulkMenuPptxModal").style.display = "block";
-}
-
-function toggleBulkMenuPptxSelectAll(cb) {
-    document.querySelectorAll(".bulk-menu-pptx-cb").forEach(box => box.checked = cb.checked);
-}
+function renderBulkMenuPptxList(){const l=document.getElementById('bulkMenuPptxList'),f=document.getElementById('bulkMenuPptxCategoryFilter')?.value||'All';document.getElementById('bulkMenuPptxSelectAll').checked=false;const a=menuDatabase.filter(m=>m.property===currentProperty&&(f==='All'||(m.category||'Uncategorized')===f)).sort(alphaSortByName);l.innerHTML=a.length?buildCategorizedChecklist(a,{itemClass:'bulk-menu-pptx-cb'}):'<span style="color:#777">No menu items found.</span>'}
+function openBulkMenuPptxModal(){populateMenuExportCategoryFilter('bulkMenuPptxCategoryFilter');renderBulkMenuPptxList();document.getElementById('bulkMenuPptxModal').style.display='block'}
+function toggleBulkMenuPptxSelectAll(cb){document.querySelectorAll('.bulk-menu-pptx-cb').forEach(x=>x.checked=cb.checked)}
 
 function executeBulkMenuPptxExport() {
     const selected = [...document.querySelectorAll(".bulk-menu-pptx-cb:checked")].map(cb => cb.value);
