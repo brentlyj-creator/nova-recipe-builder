@@ -1,5 +1,5 @@
 
-		//--- Brent ---
+	
         // --- Database Arrays ---
         let propertyDatabase = ["Hotel Alpha", "Hotel Beta", "Hotel Gamma"];
         let categoryDatabase = ["Food", "Liquor", "Wine", "Beer"];
@@ -32,9 +32,9 @@
 
         let itemCurrentPage = 1;
         const ITEMS_PER_PAGE = 100;
-        const APP_VERSION = '18.0';
+        const APP_VERSION = '19.0';
         const APP_STORAGE_KEY = `fb_recipe_cogs_manager_v${APP_VERSION.replace('.', '_')}`;
-        const LEGACY_STORAGE_KEYS = ['fb_recipe_cogs_manager_v17_0', 'fb_recipe_cogs_manager_v17', 'fb_recipe_cogs_manager_v16_0', 'fb_recipe_cogs_manager_v16', 'fb_recipe_cogs_manager_v15', 'fb_recipe_cogs_manager_v15_0'];
+        const LEGACY_STORAGE_KEYS = ['fb_recipe_cogs_manager_v18_0', 'fb_recipe_cogs_manager_v18', 'fb_recipe_cogs_manager_v17_0', 'fb_recipe_cogs_manager_v17', 'fb_recipe_cogs_manager_v16_0', 'fb_recipe_cogs_manager_v16', 'fb_recipe_cogs_manager_v15', 'fb_recipe_cogs_manager_v15_0'];
 
         // --- PROPERTY & CATEGORY MANAGEMENT LOGIC ---
         const REPORTING_GROUPS = ['Food','LWB','Non Alc','Unassigned'];
@@ -108,7 +108,7 @@
             el.style.cssText=`width:${widthPx}px;font-family:Century Gothic,Arial,sans-serif;font-size:${fontPt}pt;line-height:1.7;box-sizing:border-box;padding:${list?'0 0 0 18px':'0'};margin:0;white-space:normal;overflow-wrap:anywhere;`;
             el.innerHTML=html||''; host.appendChild(el); const height=el.scrollHeight; el.remove(); return height;
         }
-        function ingredientHtml(recipe, isMenu=false) { const rows=(isMenu?getNonCreditIngredients(recipe):(recipe.ingredients||[])); return rows.length?rows.map(i=>`<li>${escapeHtml(i.qty)} ${escapeHtml(i.unit)} — ${escapeHtml(i.name)}</li>`).join(''):'<li>No ingredients listed.</li>'; }
+        function ingredientHtml(recipe, isMenu=false) { const rows=(isMenu?getNonCreditIngredients(recipe):(recipe.ingredients||[])); return rows.length?rows.map(i=>`<li>${escapeHtml(i.qty)} ${escapeHtml(ingredientUnitLabel(i))} — ${escapeHtml(i.name)}</li>`).join(''):'<li>No ingredients listed.</li>'; }
         function fitFont(html,width,height,normal=9,min=7,list=false){ const allowed=height*EXPORT_FIT.safety; for(let pt=normal;pt>=min;pt-=0.5){const used=measureExportHtml(html,width,pt,list);if(used<=allowed)return {fits:true,fontPt:pt,usedPct:Math.min(100,Math.round(used/allowed*100)),height:used,allowed};} const used=measureExportHtml(html,width,min,list);return {fits:false,fontPt:min,usedPct:Math.round(used/allowed*100),height:used,allowed}; }
         function measureMenuPrepHtml(html,widthPx,fontPt) {
             const host=ensureMeasureHost(); const el=document.createElement('div');
@@ -361,7 +361,7 @@
             const ingChunks=Array.from({length:pages},(_,i)=>ingredients.slice(i*perPage,(i+1)*perPage));
             const stepChunks=splitTextBlocks(recipe.steps||'',pages);
             return Array.from({length:pages},(_,i)=>`<div class="recipe-card ${i?'continuation-card':''}">
-                <div class="card-left"><div class="section-label">${i?'INGREDIENTS — CONTINUED':'INGREDIENTS'}</div><ul class="ingredient-list">${(ingChunks[i]||[]).map(ing=>`<li>${escapeHtml(ing.qty)} ${escapeHtml(ing.unit)} — ${escapeHtml(ing.name)}</li>`).join('')||'<li>No additional ingredients on this page.</li>'}</ul>${i===0?`<div class="meta-block"><div><em><strong>Yield: ${yieldDisplay}</strong></em></div><div><em><strong>Shelf Life: ${shelfLife}</strong></em></div></div>`:''}</div>
+                <div class="card-left"><div class="section-label">${i?'INGREDIENTS — CONTINUED':'INGREDIENTS'}</div><ul class="ingredient-list">${(ingChunks[i]||[]).map(ing=>`<li>${escapeHtml(ing.qty)} ${escapeHtml(ingredientUnitLabel(ing))} — ${escapeHtml(ing.name)}</li>`).join('')||'<li>No additional ingredients on this page.</li>'}</ul>${i===0?`<div class="meta-block"><div><em><strong>Yield: ${yieldDisplay}</strong></em></div><div><em><strong>Shelf Life: ${shelfLife}</strong></em></div></div>`:''}</div>
                 <div class="card-divider"></div><div class="card-right">${i===0?`<h1 class="recipe-title">${escapeHtml(recipe.name)}</h1>`:`<div class="continuation-title">${escapeHtml(recipe.name)} | Page ${i+1} of ${pages}</div>`}<div class="section-label">${i?'PREPARATION — CONTINUED':'PREPARATION'}</div><div class="prep-steps" style="font-size:${fit.steps.fontPt}pt">${stepChunks[i]||''}</div>${i===pages-1?`<div class="hccap">${HACCP_TEXT}</div>`:''}</div></div>`).join('');
         }
               function getPrepCardStyles() {
@@ -1293,8 +1293,22 @@ function executeBulkExport() {
             const t=currentPropertyMenuTotals(),record={id:id||generateId('FC'),property:currentProperty,start,end,reportedSales,reportedCost,reportedPct:calculatedPct,notes,theoreticalSales:t.sales,theoreticalCost:t.cost,theoreticalPct:t.pct,savedAt:new Date().toISOString()};const idx=monthlyFoodCostDatabase.findIndex(r=>r.id===id);if(idx>=0)monthlyFoodCostDatabase[idx]=record;else monthlyFoodCostDatabase.push(record);closeModal('monthlyFoodCostModal');renderMonthlyFoodCostSummary();saveAllDataToBrowser(false);showToast('Monthly food cost saved with a theoretical snapshot.','success');
         }
         function deleteMonthlyFoodCostRecord(id){const r=monthlyFoodCostDatabase.find(x=>x.id===id);if(!r||!confirm(`Delete the food-cost period ${r.start} to ${r.end}?`))return;monthlyFoodCostDatabase=monthlyFoodCostDatabase.filter(x=>x.id!==id);renderMonthlyFoodCostSummary();saveAllDataToBrowser(false);}
-        function renderMonthlyFoodCostSummary(){
-            const el=document.getElementById('monthlyFoodCostSummary');if(!el)return;const records=monthlyFoodCostDatabase.filter(r=>r.property===currentProperty).sort((a,b)=>b.end.localeCompare(a.end));if(!records.length){el.innerHTML='<div style="margin-top:12px;padding:10px 12px;background:#f8f9fa;border:1px solid var(--border-color);border-radius:5px;color:#657786;font-size:.85rem">No monthly hotel-reported food cost saved yet.</div>';return;}const latest=records[0],dollar=latest.reportedCost-latest.theoreticalCost,point=latest.reportedPct-latest.theoreticalPct,pct=latest.reportedSales?dollar/latest.reportedSales*100:0,bad=dollar>0,color=bad?'#e74c3c':'#18bc9c',status=dollar>0?'Unfavourable':(dollar<0?'Favourable':'On theoretical');el.innerHTML=`<div style="margin-top:12px;border:1px solid var(--border-color);border-radius:6px;overflow:hidden"><div style="padding:10px 12px;background:#f2f5f7;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><strong>Latest Monthly Food Cost: ${escapeHtml(latest.start)} to ${escapeHtml(latest.end)}</strong><button class="mini-action-btn" onclick="document.getElementById('monthlyFoodCostHistory').style.display=document.getElementById('monthlyFoodCostHistory').style.display==='none'?'block':'none'">View History</button></div><div style="display:grid;grid-template-columns:repeat(6,minmax(130px,1fr));gap:8px;padding:10px"><div><small>Reported Sales</small><br><strong>$${latest.reportedSales.toFixed(2)}</strong></div><div><small>Reported Cost</small><br><strong>$${latest.reportedCost.toFixed(2)}</strong></div><div><small>Reported FC</small><br><strong>${latest.reportedPct.toFixed(2)}%</strong></div><div><small>Variance $</small><br><strong style="color:${color}">${dollar>=0?'+':''}$${dollar.toFixed(2)}</strong></div><div><small>Variance %</small><br><strong style="color:${color}">${pct>=0?'+':''}${pct.toFixed(2)}%</strong></div><div><small>FC Point Variance</small><br><strong style="color:${color}">${point>=0?'+':''}${point.toFixed(2)} pts ${status}</strong></div></div><div id="monthlyFoodCostHistory" style="display:none;padding:0 10px 10px;overflow:auto"><table><thead><tr><th>Period</th><th>Reported Sales</th><th>Reported Cost</th><th>Reported FC</th><th>Theo Sales</th><th>Theo Cost</th><th>Theo FC</th><th>Variance $</th><th>Actions</th></tr></thead><tbody>${records.map(r=>{const v=r.reportedCost-r.theoreticalCost;return `<tr><td>${escapeHtml(r.start)} to ${escapeHtml(r.end)}</td><td>$${r.reportedSales.toFixed(2)}</td><td>$${r.reportedCost.toFixed(2)}</td><td>${r.reportedPct.toFixed(2)}%</td><td>$${r.theoreticalSales.toFixed(2)}</td><td>$${r.theoreticalCost.toFixed(2)}</td><td>${r.theoreticalPct.toFixed(2)}%</td><td style="color:${v>0?'#e74c3c':'#18bc9c'}">${v>=0?'+':''}$${v.toFixed(2)}</td><td><button class="action-btn" onclick="openMonthlyFoodCostModal('${r.id}')">Edit</button><button class="action-btn" style="background:var(--cancel)" onclick="deleteMonthlyFoodCostRecord('${r.id}')">Delete</button></td></tr>`}).join('')}</tbody></table></div></div>`;
+        let selectedCogsPeriodId = '';
+        function cogsRecords(){return monthlyFoodCostDatabase.filter(r=>r.property===currentProperty).sort((a,b)=>String(b.end).localeCompare(String(a.end)));}
+        function selectCogsPeriod(id){selectedCogsPeriodId=id||'';renderCogsDashboard();}
+        function renderMonthlyFoodCostSummary(){renderCogsDashboard();}
+        function renderCogsDashboard(){
+            const summary=document.getElementById('cogsDashboardSummary'),history=document.getElementById('cogsDashboardHistory'),selector=document.getElementById('cogsPeriodSelector'),actions=document.getElementById('cogsSelectedActions');
+            if(!summary||!history||!selector)return;
+            const records=cogsRecords(); if(!records.some(r=>r.id===selectedCogsPeriodId))selectedCogsPeriodId=records[0]?.id||'';
+            selector.innerHTML=records.length?records.map(r=>`<option value="${escapeHtml(r.id)}" ${r.id===selectedCogsPeriodId?'selected':''}>${escapeHtml(r.start)} to ${escapeHtml(r.end)}</option>`).join(''):'<option value="">No saved periods</option>';
+            const selected=records.find(r=>r.id===selectedCogsPeriodId);
+            if(!selected){summary.innerHTML='<div style="padding:22px;text-align:center;color:#657786">No monthly food-cost results saved for this property. Select <strong>+ Add Monthly Food Cost</strong> to begin.</div>';history.innerHTML='<div style="padding:16px;text-align:center;color:#777">No historical records.</div>';if(actions)actions.innerHTML='';return;}
+            const dollar=selected.reportedCost-selected.theoreticalCost, variancePct=selected.reportedSales?dollar/selected.reportedSales*100:0, points=selected.reportedPct-selected.theoreticalPct, bad=dollar>0,color=bad?'#e74c3c':'#18bc9c',status=dollar>0?'Unfavourable':(dollar<0?'Favourable':'On theoretical');
+            if(actions)actions.innerHTML=`<button class="action-btn" onclick="openMonthlyFoodCostModal('${selected.id}')">Edit Period</button><button class="action-btn" style="background:var(--cancel)" onclick="deleteMonthlyFoodCostRecord('${selected.id}')">Delete</button>`;
+            const card=(label,value,style='')=>`<div class="recipe-meta-card"><strong>${label}</strong><span style="font-size:1.05rem;font-weight:700;${style}">${value}</span></div>`;
+            summary.innerHTML=`<div class="cogs-summary-grid">${card('Reporting Period',`${escapeHtml(selected.start)} to ${escapeHtml(selected.end)}`)}${card('Reported Food Sales',`$${selected.reportedSales.toFixed(2)}`)}${card('Reported Food Cost',`$${selected.reportedCost.toFixed(2)}`)}${card('Reported FC',`${selected.reportedPct.toFixed(2)}%`)}${card('Theoretical Sales',`$${selected.theoreticalSales.toFixed(2)}`)}${card('Theoretical Cost',`$${selected.theoreticalCost.toFixed(2)}`)}${card('Theoretical FC',`${selected.theoreticalPct.toFixed(2)}%`)}${card('Variance $',`${dollar>=0?'+':''}$${dollar.toFixed(2)}`,`color:${color}`)}${card('Variance %',`${variancePct>=0?'+':''}${variancePct.toFixed(2)}%`,`color:${color}`)}${card('FC Point Variance',`${points>=0?'+':''}${points.toFixed(2)} pts`,`color:${color}`)}${card('Status',status,`color:${color}`)}</div>${selected.notes?`<div style="padding:10px 12px;background:#f8f9fa;border:1px solid var(--border-color);border-radius:5px"><strong>Notes:</strong> ${escapeHtml(selected.notes)}</div>`:''}`;
+            history.innerHTML=`<table><thead><tr><th>Period</th><th>Reported Sales</th><th>Reported Cost</th><th>Reported FC</th><th>Theo Sales</th><th>Theo Cost</th><th>Theo FC</th><th>Variance $</th><th>Variance %</th><th>FC Points</th><th>Status</th><th>Actions</th></tr></thead><tbody>${records.map(r=>{const v=r.reportedCost-r.theoreticalCost,vp=r.reportedSales?v/r.reportedSales*100:0,pt=r.reportedPct-r.theoreticalPct,st=v>0?'Unfavourable':(v<0?'Favourable':'On theoretical'),c=v>0?'#e74c3c':'#18bc9c';return `<tr><td>${escapeHtml(r.start)} to ${escapeHtml(r.end)}</td><td>$${r.reportedSales.toFixed(2)}</td><td>$${r.reportedCost.toFixed(2)}</td><td>${r.reportedPct.toFixed(2)}%</td><td>$${r.theoreticalSales.toFixed(2)}</td><td>$${r.theoreticalCost.toFixed(2)}</td><td>${r.theoreticalPct.toFixed(2)}%</td><td style="color:${c};font-weight:700">${v>=0?'+':''}$${v.toFixed(2)}</td><td style="color:${c}">${vp>=0?'+':''}${vp.toFixed(2)}%</td><td style="color:${c}">${pt>=0?'+':''}${pt.toFixed(2)}</td><td style="color:${c};font-weight:700">${st}</td><td><button class="action-btn" onclick="selectCogsPeriod('${r.id}');openMonthlyFoodCostModal('${r.id}')">Edit</button><button class="action-btn" style="background:var(--cancel)" onclick="deleteMonthlyFoodCostRecord('${r.id}')">Delete</button></td></tr>`}).join('')}</tbody></table>`;
         }
 
         function renderPropertyMenus() {
@@ -1315,7 +1329,7 @@ function executeBulkExport() {
 
             if (menus.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#777;">No menus created for this property yet.</td></tr>`;
-                renderMonthlyFoodCostSummary(); return;
+                return;
             }
 
             menus.forEach(menu => {
@@ -2113,6 +2127,12 @@ ${propertyDatabase.join('\n')}`,current);
         // --- CUSTOM RECIPE UNITS (GLOBAL) ---
         function customUnitByValue(value){ return customRecipeUnitDatabase.find(u=>u.id===value||u.singular===value); }
         function customUnitLabel(value,qty=1){ const u=customUnitByValue(value); return u ? (Math.abs(parseFloat(qty)||0)===1?u.singular:u.plural) : (UNIT_LABELS[value]||value); }
+        function unitDisplayLabel(value,qty=1,{compact=false}={}){
+            const custom=customUnitByValue(value); if(custom)return Math.abs(parseFloat(qty)||0)===1?custom.singular:custom.plural;
+            const short={L:'L',ML:'mL',FL_OZ:'fl oz',Cups:'cups',Tbsp:'tbsp',Tsp:'tsp',KG:'kg',G:'g',LBS:'lb',OZ:'oz',Each:'each',Portion:'portion'};
+            return compact?(short[value]||value):(UNIT_LABELS[value]||value);
+        }
+        function ingredientUnitLabel(ing){return unitDisplayLabel(ing?.unit,ing?.qty);}
         function renderCustomRecipeUnitTable(){
             const body=document.getElementById('customRecipeUnitTableBody'); if(!body)return;
             body.innerHTML=customRecipeUnitDatabase.length?customRecipeUnitDatabase.slice().sort((a,b)=>a.singular.localeCompare(b.singular)).map(u=>`<tr><td>${escapeHtml(u.singular)}</td><td>${escapeHtml(u.plural)}</td><td><button class="action-btn" onclick="editCustomRecipeUnit('${u.id}')">Edit</button><button class="action-btn" style="background:var(--cancel)" onclick="deleteCustomRecipeUnit('${u.id}')">X</button></td></tr>`).join(''):'<tr><td colspan="3" style="color:#777;text-align:center">No custom recipe units added yet.</td></tr>';
@@ -2335,10 +2355,10 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
 
         // --- DESKTOP LAYOUT PREFERENCES ---
         const UI_LAYOUT_STORAGE_KEY = 'fb_recipe_cogs_manager_ui_layout';
-        const TAB_TITLES = {'menu-builder':'Menus',items:'Item Master',prep:'Prep Recipes','menu-items':'Menu Item Recipes',hotels:'Property Management',variance:'Inventory Variance'};
+        const TAB_TITLES = {'cogs-dashboard':'COGS Dashboard','menu-builder':'Menus',items:'Item Master',prep:'Prep Recipes','menu-items':'Menu Item Recipes',hotels:'Property Management',variance:'Inventory Variance'};
         function updatePageContext(tabName){const el=document.getElementById('pageContextTitle');if(el)el.textContent=TAB_TITLES[tabName]||'F&B Manager';}
         function toggleSidebarCollapse(forceState=null){const collapsed=forceState===null?!document.body.classList.contains('sidebar-collapsed'):!!forceState;document.body.classList.toggle('sidebar-collapsed',collapsed);const btn=document.getElementById('sidebarCollapseBtn');if(btn){btn.textContent=collapsed?'▶':'◀';btn.title=collapsed?'Expand navigation':'Collapse navigation';}try{localStorage.setItem(UI_LAYOUT_STORAGE_KEY,JSON.stringify({collapsed}));}catch(err){}}
-        function restoreLayoutPreference(){let collapsed=false;try{collapsed=!!JSON.parse(localStorage.getItem(UI_LAYOUT_STORAGE_KEY)||'{}').collapsed;}catch(err){}toggleSidebarCollapse(collapsed);updatePageContext(document.querySelector('.tab-content.active')?.id||'menu-builder');}
+        function restoreLayoutPreference(){let collapsed=false;try{collapsed=!!JSON.parse(localStorage.getItem(UI_LAYOUT_STORAGE_KEY)||'{}').collapsed;}catch(err){}toggleSidebarCollapse(collapsed);updatePageContext(document.querySelector('.tab-content.active')?.id||'cogs-dashboard');}
         function toggleWorkflowPanel(panelId,button){const panel=document.getElementById(panelId);if(!panel)return;const open=panel.classList.toggle('show');if(button)button.classList.toggle('open',open);}
         // --- Navigation Logic ---
         function openTab(evt, tabName) {
@@ -2348,7 +2368,8 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
             if (tab) tab.classList.add('active');
             if (evt?.currentTarget) evt.currentTarget.classList.add('active');
             updatePageContext(tabName);
-            if (tabName === 'menu-builder') { renderPropertyMenuPicker(); renderPropertyMenus(); renderSelectedPropertyMenuDetails(); }
+            if (tabName === 'cogs-dashboard') { renderCogsDashboard(); }
+            else if (tabName === 'menu-builder') { renderPropertyMenuPicker(); renderPropertyMenus(); renderSelectedPropertyMenuDetails(); }
             else if (tabName === 'menu-items') { updateMenuCategoryFilterOptions(); renderMenuTable(); }
             else if (tabName === 'prep') { renderPrepTable(); }
             else if (tabName === 'variance') { renderVarianceTable(); }
@@ -2839,7 +2860,7 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
             } else {
                 const propertyCount = new Set(rows.map(r => r.property)).size;
                 const recipeCount = new Set(rows.map(r => `${r.recipeType}:${r.recipeId}`)).size;
-                const tableRows = rows.map(r => `<tr><td><strong>${escapeHtml(r.property)}</strong></td><td>${escapeHtml(r.recipeType)}</td><td><strong>${escapeHtml(r.recipeName)}</strong></td><td>${r.path === 'Direct ingredient' ? 'Direct ingredient' : `Via ${escapeHtml(r.path)}`}</td><td>${escapeHtml(r.qty)} ${escapeHtml(r.unit)}</td></tr>`).join('');
+                const tableRows = rows.map(r => `<tr><td><strong>${escapeHtml(r.property)}</strong></td><td>${escapeHtml(r.recipeType)}</td><td><strong>${escapeHtml(r.recipeName)}</strong></td><td>${r.path === 'Direct ingredient' ? 'Direct ingredient' : `Via ${escapeHtml(r.path)}`}</td><td>${escapeHtml(r.qty)} ${escapeHtml(unitDisplayLabel(r.unit,r.qty))}</td></tr>`).join('');
                 body.innerHTML = `<p style="color:#666;margin-top:-5px;">Includes direct use and menu items that depend on this item through a Prep Recipe.</p><div class="recipe-meta-grid"><div class="recipe-meta-card"><strong>Properties</strong>${propertyCount}</div><div class="recipe-meta-card"><strong>Recipes Affected</strong>${recipeCount}</div><div class="recipe-meta-card"><strong>Usage Lines</strong>${rows.length}</div><div class="recipe-meta-card"><strong>Current Recipe Unit</strong>${escapeHtml(item.recipeMeasure || '—')}</div></div><table><thead><tr><th>Property</th><th>Recipe Type</th><th>Recipe</th><th>Used</th><th>Qty / Unit</th></tr></thead><tbody>${tableRows}</tbody></table>`;
             }
             document.getElementById('itemDrilldownModal').style.display = 'block';
@@ -2898,8 +2919,8 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
 				  const isViaPrep = r.path && r.path !== 'Direct ingredient';
 				  const qtyCell = isViaPrep
 					? `${effectiveQty.toFixed(2)} ${escapeHtml(item.recipeMeasure)}
-					   <br><span style="font-size:0.7rem;color:#aaa">(recipe batch calls for ${r.qtyPerUnit} ${escapeHtml(r.unit)})</span>`
-					: `${r.qtyPerUnit} ${escapeHtml(r.unit)}`;
+					   <br><span style="font-size:0.7rem;color:#aaa">(recipe batch calls for ${r.qtyPerUnit} ${escapeHtml(unitDisplayLabel(r.unit,r.qtyPerUnit))})</span>`
+					: `${r.qtyPerUnit} ${escapeHtml(unitDisplayLabel(r.unit,r.qtyPerUnit))}`;
 				  return `
 					<tr>
 					  <td><strong>${escapeHtml(r.menuItemName)}</strong><br>
@@ -2928,7 +2949,7 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
                         <tfoot>
                             <tr style="background-color:#e9ecef;font-weight:bold;">
                                 <td colspan="4" style="text-align:right;">Total Theoretical Usage</td>
-                                <td style="color:var(--primary);">${totalTheoretical.toFixed(2)} ${escapeHtml(item.recipeMeasure)}</td>
+                                <td style="color:var(--primary);">${totalTheoretical.toFixed(2)} ${escapeHtml(unitDisplayLabel(item.recipeMeasure,totalTheoretical,{compact:true}))}</td>
                             </tr>
                         </tfoot>
                     </table>`;
@@ -2950,9 +2971,9 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
             const parts=[];
             if(cases)parts.push(`${cases} ${cases===1?(item.packType||'Case'):((item.packType||'Case').endsWith('s')?(item.packType||'Case'):(item.packType||'Case')+'s')}`);
             if(inners)parts.push(`${inners} ${inners===1?(item.unitDescriptor||'Unit'):((item.unitDescriptor||'Unit').endsWith('s')?(item.unitDescriptor||'Unit'):(item.unitDescriptor||'Unit')+'s')}`);
-            if(remaining||!parts.length)parts.push(`${formatQtyNumber(remaining)} ${customUnitLabel(item.recipeMeasure,remaining)}`);
-            const main=sign+parts.join(' + '), total=`${sign}${formatQtyNumber(abs)} ${customUnitLabel(item.recipeMeasure,abs)} total`;
-            return html?`<div style="font-weight:600;white-space:nowrap">${escapeHtml(main)}</div><div style="font-size:.72rem;color:#7f8c8d;white-space:nowrap">${escapeHtml(total)}</div>`:`${main}\n${total}`;
+            if(remaining||!parts.length)parts.push(`${formatQtyNumber(remaining)} ${unitDisplayLabel(item.recipeMeasure,remaining,{compact:true})}`);
+            const main=sign+parts.join(' + '), total=`${sign}${formatQtyNumber(abs)} ${unitDisplayLabel(item.recipeMeasure,abs,{compact:true})} total`;
+            return html?`<div class="variance-breakdown">${escapeHtml(main)}</div><div class="variance-total">${escapeHtml(total)}</div>`:`${main}\n${total}`;
         }
 
         function renderVarianceTable() {
@@ -3028,17 +3049,17 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
                 tr.innerHTML = `
                     <td><strong style="cursor:pointer;color:#2980b9;text-decoration:underline;" onclick="openItemDrilldown('${r.item.id}')" title="Click to see which recipes use this item">${escapeHtml(r.item.name)}</strong><br><span style="font-size:0.75rem;color:#7f8c8d;">${escapeHtml(r.item.packType || '')} ${r.item.units || ''} ${escapeHtml(descriptor)}${(parseFloat(r.item.units) === 1) ? '' : 's'} x ${r.item.unitSize || ''} ${escapeHtml(r.item.unitMeasure || '')}</span></td>
                     <td>${varianceQuantityDisplay(r.item,r.theoreticalQty)}</td>
-                    <td style="white-space:nowrap;">
-                        <input type="number" step="0.01" placeholder="Cases" value="${entry.opening.cases || ''}" style="width:65px" oninput="updateInventoryField('${r.item.id}','opening','cases',this.value)">
-                        <input type="number" step="0.01" placeholder="${escapeHtml(packPlaceholder)}" title="${escapeHtml(descriptor)}s per case" value="${entry.opening.packQty || ''}" style="width:70px" oninput="updateInventoryField('${r.item.id}','opening','packQty',this.value)">
+                    <td class="variance-count-cell">
+                        <input type="number" step="0.01" placeholder="Case" value="${entry.opening.cases || ''}" oninput="updateInventoryField('${r.item.id}','opening','cases',this.value)">
+                        <input type="number" step="0.01" placeholder="${escapeHtml(packPlaceholder)}" title="${escapeHtml(descriptor)}s per case" value="${entry.opening.packQty || ''}" oninput="updateInventoryField('${r.item.id}','opening','packQty',this.value)">
                     </td>
-                    <td style="white-space:nowrap;">
-                        <input type="number" step="0.01" placeholder="Cases" value="${p0.cases || ''}" style="width:65px" oninput="updatePurchaseField('${r.item.id}',0,'cases',this.value)">
-                        <input type="number" step="0.01" placeholder="${escapeHtml(packPlaceholder)}" title="${escapeHtml(descriptor)}s per case" value="${p0.packQty || ''}" style="width:70px" oninput="updatePurchaseField('${r.item.id}',0,'packQty',this.value)">
+                    <td class="variance-count-cell">
+                        <input type="number" step="0.01" placeholder="Case" value="${p0.cases || ''}" oninput="updatePurchaseField('${r.item.id}',0,'cases',this.value)">
+                        <input type="number" step="0.01" placeholder="${escapeHtml(packPlaceholder)}" title="${escapeHtml(descriptor)}s per case" value="${p0.packQty || ''}" oninput="updatePurchaseField('${r.item.id}',0,'packQty',this.value)">
                     </td>
-                    <td style="white-space:nowrap;">
-                        <input type="number" step="0.01" placeholder="Cases" value="${entry.closing.cases || ''}" style="width:65px" oninput="updateInventoryField('${r.item.id}','closing','cases',this.value)">
-                        <input type="number" step="0.01" placeholder="${escapeHtml(packPlaceholder)}" title="${escapeHtml(descriptor)}s per case" value="${entry.closing.packQty || ''}" style="width:70px" oninput="updateInventoryField('${r.item.id}','closing','packQty',this.value)">
+                    <td class="variance-count-cell">
+                        <input type="number" step="0.01" placeholder="Case" value="${entry.closing.cases || ''}" oninput="updateInventoryField('${r.item.id}','closing','cases',this.value)">
+                        <input type="number" step="0.01" placeholder="${escapeHtml(packPlaceholder)}" title="${escapeHtml(descriptor)}s per case" value="${entry.closing.packQty || ''}" oninput="updateInventoryField('${r.item.id}','closing','packQty',this.value)">
                     </td>
                     <td>${actualQtyDisplay}</td>
                     <td style="font-weight:bold;color:${varianceColor}">${varianceQtyDisplay}</td>
@@ -4912,7 +4933,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                 const lineCost = getLiveIngredientTotalCost(ing);
                 const isCredit = parseFloat(ing.qty) < 0;
                 if (!isCredit) totalCost += lineCost;
-                tbody.innerHTML += `<tr${isCredit ? ' style="background-color:#fdecea;"' : ''}><td><strong>${escapeHtml(ing.name)}</strong>${isCredit ? ' <span style="font-size:0.72rem;color:#e74c3c;font-weight:bold;">(credit)</span>' : ''}</td><td>${ing.qty}</td><td>${escapeHtml(ing.unit)}</td><td style="${isCredit ? 'color:#e74c3c;font-weight:bold;' : ''}">${formatCurrency(lineCost)}</td>
+                tbody.innerHTML += `<tr${isCredit ? ' style="background-color:#fdecea;"' : ''}><td><strong>${escapeHtml(ing.name)}</strong>${isCredit ? ' <span style="font-size:0.72rem;color:#e74c3c;font-weight:bold;">(credit)</span>' : ''}</td><td>${ing.qty}</td><td>${escapeHtml(ingredientUnitLabel(ing))}</td><td style="${isCredit ? 'color:#e74c3c;font-weight:bold;' : ''}">${formatCurrency(lineCost)}</td>
                 <td>
                     <button type="button" class="action-btn" style="background-color: var(--warning);" onclick="editIngredientQuantity('editMenuModal', ${index})">Edit</button>
                     <button type="button" class="action-btn" style="background-color: var(--cancel);" onclick="removeIngredient('editMenuModal', ${index})">X</button>
@@ -5322,7 +5343,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                 const lineCost = getLiveIngredientTotalCost(ing);
                 totalCost += lineCost;
                 const isCredit = parseFloat(ing.qty) < 0;
-                tbody.innerHTML += `<tr${isCredit ? ' style="background-color:#fdecea;"' : ''}><td><strong>${escapeHtml(ing.missingSourceItemName ? `Missing item: ${ing.missingSourceItemName}` : ing.name)}</strong>${isCredit ? ' <span style="font-size:0.72rem;color:#e74c3c;font-weight:bold;">(credit)</span>' : ''}</td><td>${ing.qty}</td><td>${ing.unit}</td><td style="${isCredit ? 'color:#e74c3c;font-weight:bold;' : ''}">${formatCurrency(lineCost)}</td>
+                tbody.innerHTML += `<tr${isCredit ? ' style="background-color:#fdecea;"' : ''}><td><strong>${escapeHtml(ing.missingSourceItemName ? `Missing item: ${ing.missingSourceItemName}` : ing.name)}</strong>${isCredit ? ' <span style="font-size:0.72rem;color:#e74c3c;font-weight:bold;">(credit)</span>' : ''}</td><td>${ing.qty}</td><td>${escapeHtml(ingredientUnitLabel(ing))}</td><td style="${isCredit ? 'color:#e74c3c;font-weight:bold;' : ''}">${formatCurrency(lineCost)}</td>
                 <td>
                     <button type="button" class="action-btn" style="background-color: var(--warning);" onclick="editIngredientQuantity('prep', ${index})">Edit</button>
                     <button type="button" class="action-btn" style="background-color: var(--cancel);" onclick="removeIngredient('prep', ${index})">X</button>
@@ -5342,7 +5363,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                 const lineCost = getLiveIngredientTotalCost(ing);
                 const isCredit = parseFloat(ing.qty) < 0;
                 if (!isCredit) totalCost += lineCost;
-                tbody.innerHTML += `<tr${isCredit ? ' style="background-color:#fdecea;"' : ''}><td><strong>${escapeHtml(ing.missingSourceItemName ? `Missing item: ${ing.missingSourceItemName}` : ing.name)}</strong>${isCredit ? ' <span style="font-size:0.72rem;color:#e74c3c;font-weight:bold;">(credit)</span>' : ''}</td><td>${ing.qty}</td><td>${ing.unit}</td><td style="${isCredit ? 'color:#e74c3c;font-weight:bold;' : ''}">${formatCurrency(lineCost)}</td>
+                tbody.innerHTML += `<tr${isCredit ? ' style="background-color:#fdecea;"' : ''}><td><strong>${escapeHtml(ing.missingSourceItemName ? `Missing item: ${ing.missingSourceItemName}` : ing.name)}</strong>${isCredit ? ' <span style="font-size:0.72rem;color:#e74c3c;font-weight:bold;">(credit)</span>' : ''}</td><td>${ing.qty}</td><td>${escapeHtml(ingredientUnitLabel(ing))}</td><td style="${isCredit ? 'color:#e74c3c;font-weight:bold;' : ''}">${formatCurrency(lineCost)}</td>
                 <td>
                     <button type="button" class="action-btn" style="background-color: var(--warning);" onclick="editIngredientQuantity('menu', ${index})">Edit</button>
                     <button type="button" class="action-btn" style="background-color: var(--cancel);" onclick="removeIngredient('menu', ${index})">X</button>
@@ -5524,7 +5545,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                 `<tr>
                     <td>${ing.name}</td>
                     <td>${ing.qty}</td>
-                    <td>${ing.unit}</td>
+                    <td>${escapeHtml(ingredientUnitLabel(ing))}</td>
                     <td>$${getLiveIngredientTotalCost(ing).toFixed(2)}</td>
                 </tr>`
             ).join('') || '<tr><td colspan="4" style="color:#777; text-align:center;">No ingredients listed.</td></tr>';
@@ -5559,7 +5580,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                 `<tr>
                     <td>${ing.name}</td>
                     <td>${ing.qty}</td>
-                    <td>${ing.unit}</td>
+                    <td>${escapeHtml(ingredientUnitLabel(ing))}</td>
                     <td>$${getLiveIngredientTotalCost(ing).toFixed(2)}</td>
                 </tr>`
             ).join('') || '<tr><td colspan="4" style="color:#777; text-align:center;">No ingredients listed.</td></tr>';
@@ -5672,7 +5693,7 @@ function buildMenuItemCogsPdfHTML(menu) {
     const liveCostPercentage = calculateMenuCostPercentageExcludingCredits(menu);
     const costColor = getCogsCostColor(liveCostPercentage);
     const targetPrice = parseFloat(menu.targetPrice || 0);
-    const ingredientRows = getNonCreditIngredients(menu).map(ing => `<tr><td>${escapeHtml(ing.name || '')}</td><td class="num">${escapeHtml(ing.qty ?? '')}</td><td>${escapeHtml(ing.unit || '')}</td><td class="num">$${getLiveIngredientTotalCost(ing).toFixed(2)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted" style="text-align:center;">No ingredients listed.</td></tr>';
+    const ingredientRows = getNonCreditIngredients(menu).map(ing => `<tr><td>${escapeHtml(ing.name || '')}</td><td class="num">${escapeHtml(ing.qty ?? '')}</td><td>${escapeHtml(ingredientUnitLabel(ing))}</td><td class="num">$${getLiveIngredientTotalCost(ing).toFixed(2)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted" style="text-align:center;">No ingredients listed.</td></tr>';
     return `<section class="cogs-page"><div class="cogs-title-row"><div><h1>${escapeHtml(menu.name || 'Menu Item')}</h1><div class="property-line">${escapeHtml(currentProperty || '')}</div></div></div>
         <div class="meta-grid"><div class="meta-card"><strong>Category</strong><span class="value">${escapeHtml(menu.category || '—')}</span></div><div class="meta-card"><strong>Target Price</strong><span class="value">$${targetPrice.toFixed(2)}</span></div><div class="meta-card"><strong>Food Cost</strong><span class="value">$${liveFoodCost.toFixed(2)}</span></div><div class="meta-card"><strong>Cost %</strong><span class="value" style="color:${costColor}; font-weight:800;">${liveCostPercentage.toFixed(1)}%</span></div><div class="meta-card"><strong>Cook Time</strong><span class="value">${escapeHtml(menu.cookTime || '—')}</span></div></div>
         <h2>Ingredients</h2><table><thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Cost</th></tr></thead><tbody>${ingredientRows}</tbody></table></section>`;
