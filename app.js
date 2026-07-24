@@ -1,4 +1,5 @@
 
+		//--- Brent ---
         // --- Database Arrays ---
         let propertyDatabase = ["Hotel Alpha", "Hotel Beta", "Hotel Gamma"];
         let categoryDatabase = ["Food", "Liquor", "Wine", "Beer"];
@@ -8,6 +9,7 @@
         let unitDescriptorDatabase = ['Unit', 'Bag', 'Box', 'Sleeve', 'Tray', 'Portion']; // Global unit-per-pack descriptors
         let customRecipeUnitDatabase = []; // [{id,singular,plural}] global custom count units
         let monthlyFoodCostDatabase = []; // property/month reporting snapshots
+        let propertyBudgetFcDatabase = {}; // { [property]: budgetFoodCostPct }
         
         let itemDatabase = []; // Global
         let prepDatabase = []; // Localized (has .property key)
@@ -31,9 +33,9 @@
 
         let itemCurrentPage = 1;
         const ITEMS_PER_PAGE = 100;
-        const APP_VERSION = '20.0';
+        const APP_VERSION = '21.0';
         const APP_STORAGE_KEY = `fb_recipe_cogs_manager_v${APP_VERSION.replace('.', '_')}`;
-        const LEGACY_STORAGE_KEYS = ['fb_recipe_cogs_manager_v19_0', 'fb_recipe_cogs_manager_v19', 'fb_recipe_cogs_manager_v18_0', 'fb_recipe_cogs_manager_v18', 'fb_recipe_cogs_manager_v17_0', 'fb_recipe_cogs_manager_v17', 'fb_recipe_cogs_manager_v16_0', 'fb_recipe_cogs_manager_v16', 'fb_recipe_cogs_manager_v15', 'fb_recipe_cogs_manager_v15_0'];
+        const LEGACY_STORAGE_KEYS = ['fb_recipe_cogs_manager_v20_0', 'fb_recipe_cogs_manager_v20', 'fb_recipe_cogs_manager_v19_0', 'fb_recipe_cogs_manager_v19', 'fb_recipe_cogs_manager_v18_0', 'fb_recipe_cogs_manager_v18', 'fb_recipe_cogs_manager_v17_0', 'fb_recipe_cogs_manager_v17', 'fb_recipe_cogs_manager_v16_0', 'fb_recipe_cogs_manager_v16', 'fb_recipe_cogs_manager_v15', 'fb_recipe_cogs_manager_v15_0'];
 
         // --- PROPERTY & CATEGORY MANAGEMENT LOGIC ---
         const REPORTING_GROUPS = ['Food','LWB','Non Alc','Unassigned'];
@@ -575,6 +577,7 @@ function executeBulkExport() {
                 unitDescriptorDatabase: Array.isArray(unitDescriptorDatabase) ? [...unitDescriptorDatabase] : [],
                 customRecipeUnitDatabase: Array.isArray(customRecipeUnitDatabase) ? [...customRecipeUnitDatabase] : [],
                 monthlyFoodCostDatabase: Array.isArray(monthlyFoodCostDatabase) ? [...monthlyFoodCostDatabase] : [],
+                propertyBudgetFcDatabase: (propertyBudgetFcDatabase && typeof propertyBudgetFcDatabase === 'object') ? {...propertyBudgetFcDatabase} : {},
                 menuItemCategoryDatabase: Array.isArray(menuItemCategoryDatabase) ? [...menuItemCategoryDatabase] : [],
                 prepCategoryDatabase: Array.isArray(prepCategoryDatabase) ? [...prepCategoryDatabase] : [],
                 inventoryCountDatabase: (inventoryCountDatabase && typeof inventoryCountDatabase === 'object') ? inventoryCountDatabase : {},
@@ -597,6 +600,7 @@ function executeBulkExport() {
             unitDescriptorDatabase = Array.isArray(data.unitDescriptorDatabase) ? data.unitDescriptorDatabase : ['Unit', 'Bag', 'Box', 'Sleeve', 'Tray', 'Portion'];
             customRecipeUnitDatabase = Array.isArray(data.customRecipeUnitDatabase) ? data.customRecipeUnitDatabase : [];
             monthlyFoodCostDatabase = Array.isArray(data.monthlyFoodCostDatabase) ? data.monthlyFoodCostDatabase : [];
+            propertyBudgetFcDatabase = (data.propertyBudgetFcDatabase && typeof data.propertyBudgetFcDatabase === 'object') ? data.propertyBudgetFcDatabase : {};
             menuItemCategoryDatabase = Array.isArray(data.menuItemCategoryDatabase) ? data.menuItemCategoryDatabase : ['Appies', 'Salads', 'Entrees', 'LWB'];
             prepCategoryDatabase = Array.isArray(data.prepCategoryDatabase) ? data.prepCategoryDatabase : [];
             inventoryCountDatabase = (data.inventoryCountDatabase && typeof data.inventoryCountDatabase === 'object') ? data.inventoryCountDatabase : {};
@@ -1289,70 +1293,66 @@ function executeBulkExport() {
             const id=document.getElementById('monthlyFoodCostEditId').value,start=document.getElementById('monthlyFoodCostStart').value,end=document.getElementById('monthlyFoodCostEnd').value,reportedSales=parseFloat(document.getElementById('monthlyFoodSales').value),reportedCost=parseFloat(document.getElementById('monthlyFoodCost').value),enteredPct=parseFloat(document.getElementById('monthlyFoodCostPct').value),notes=plainText(document.getElementById('monthlyFoodCostNotes').value);
             if(!start||!end||start>end||!(reportedSales>0)||!(reportedCost>=0)){showToast('Enter a valid period, reported food sales, and cost dollars or percentage.','warning');return;}const calculatedPct=reportedCost/reportedSales*100;if(Number.isFinite(enteredPct)&&Math.abs(enteredPct-calculatedPct)>0.10){showToast('Reported dollars and percentage differ by more than 0.10 percentage points. Please correct them.','warning');return;}
             const overlap=monthlyFoodCostDatabase.find(r=>r.property===currentProperty&&r.id!==id&&start<=r.end&&end>=r.start);if(overlap){showToast(`This period overlaps ${overlap.start} to ${overlap.end}. Edit the existing period instead.`,'warning');return;}
-            const t=currentPropertyMenuTotals(),record={id:id||generateId('FC'),property:currentProperty,start,end,reportedSales,reportedCost,reportedPct:calculatedPct,notes,theoreticalSales:t.sales,theoreticalCost:t.cost,theoreticalPct:t.pct,savedAt:new Date().toISOString()};const idx=monthlyFoodCostDatabase.findIndex(r=>r.id===id);if(idx>=0)monthlyFoodCostDatabase[idx]=record;else monthlyFoodCostDatabase.push(record);closeModal('monthlyFoodCostModal');renderMonthlyFoodCostSummary();saveAllDataToBrowser(false);showToast('Monthly food cost saved with a theoretical snapshot.','success');
+            const idx=monthlyFoodCostDatabase.findIndex(r=>r.id===id);
+            const existing=idx>=0?monthlyFoodCostDatabase[idx]:null;
+            const t=currentPropertyMenuTotals();
+            const budgetSnapshot=existing&&Number(existing.budgetPct)>0?Number(existing.budgetPct):(Number(propertyBudgetFcDatabase[currentProperty])||0);
+            const record={id:id||generateId('FC'),property:currentProperty,start,end,reportedSales,reportedCost,reportedPct:calculatedPct,notes,
+                theoreticalSales:existing?Number(existing.theoreticalSales)||0:t.sales,
+                theoreticalCost:existing?Number(existing.theoreticalCost)||0:t.cost,
+                theoreticalPct:existing?Number(existing.theoreticalPct)||0:t.pct,
+                budgetPct:budgetSnapshot,
+                savedAt:existing?.savedAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+            if(idx>=0)monthlyFoodCostDatabase[idx]=record;else monthlyFoodCostDatabase.push(record);
+            closeModal('monthlyFoodCostModal');renderMonthlyFoodCostSummary();saveAllDataToBrowser(false);showToast(existing?'Monthly reported results updated; original budget and theoretical snapshots were retained.':'Monthly food cost saved with budget and theoretical snapshots.','success');
         }
         function deleteMonthlyFoodCostRecord(id){const r=monthlyFoodCostDatabase.find(x=>x.id===id);if(!r||!confirm(`Delete the food-cost period ${r.start} to ${r.end}?`))return;monthlyFoodCostDatabase=monthlyFoodCostDatabase.filter(x=>x.id!==id);renderMonthlyFoodCostSummary();saveAllDataToBrowser(false);}
         let selectedCogsPeriodId = '';
         function cogsRecords(){return monthlyFoodCostDatabase.filter(r=>r.property===currentProperty).sort((a,b)=>String(b.end).localeCompare(String(a.end)));}
         function selectCogsPeriod(id){selectedCogsPeriodId=id||'';renderCogsDashboard();}
         function renderMonthlyFoodCostSummary(){renderCogsDashboard();}
+        function currentPropertyBudgetFc(){return Number(propertyBudgetFcDatabase[currentProperty])||0;}
+        function savePropertyBudgetFc(){
+            const input=document.getElementById('propertyBudgetFc');const value=parseFloat(input?.value);
+            if(!Number.isFinite(value)||value<0||value>100){showToast('Enter a valid Property Budget FC between 0 and 100%.','warning');return;}
+            propertyBudgetFcDatabase[currentProperty]=value;let backfilled=0;monthlyFoodCostDatabase.forEach(r=>{if(r.property===currentProperty&&!(Number(r.budgetPct)>0)){r.budgetPct=value;backfilled++;}});saveAllDataToBrowser(false);renderCogsDashboard();showToast(`Budget FC saved for ${currentProperty}: ${value.toFixed(2)}%.${backfilled?` Added to ${backfilled} existing period(s) that did not have a budget snapshot.`:''}`,'success');
+        }
+        function cogsMetrics(r){
+            const reportedSales=Number(r.reportedSales)||0,reportedCost=Number(r.reportedCost)||0,reportedPct=Number(r.reportedPct)||0,theoPct=Number(r.theoreticalPct)||0,budgetPct=Number(r.budgetPct)||0;
+            const budgetAllowable=reportedSales*(budgetPct/100),theoExpected=reportedSales*(theoPct/100);
+            const productUsageGap=reportedCost-theoExpected,budgetCostVariance=reportedCost-budgetAllowable;
+            const theoVsBudgetPts=theoPct-budgetPct,reportedVsTheoPts=reportedPct-theoPct;
+            return {reportedSales,reportedCost,reportedPct,theoPct,budgetPct,budgetAllowable,theoExpected,productUsageGap,budgetCostVariance,theoVsBudgetPts,reportedVsTheoPts};
+        }
+        function varianceStatus(value){return value>0?'Unfavourable':(value<0?'Favourable':'On target');}
+        function varianceColor(value){return value>0?'#e74c3c':(value<0?'#18bc9c':'#657786');}
         function renderCogsDashboard(){
-            const summary=document.getElementById('cogsDashboardSummary');
-            const history=document.getElementById('cogsDashboardHistory');
-            const selector=document.getElementById('cogsPeriodSelector');
-            const actions=document.getElementById('cogsSelectedActions');
-            if(!summary||!history||!selector)return;
-            const records=cogsRecords();
-            if(!records.some(r=>r.id===selectedCogsPeriodId)) selectedCogsPeriodId=records[0]?.id||'';
-            selector.innerHTML=records.length
-                ? records.map(r=>`<option value="${escapeHtml(r.id)}" ${r.id===selectedCogsPeriodId?'selected':''}>${escapeHtml(r.start)} to ${escapeHtml(r.end)}</option>`).join('')
-                : '<option value="">No saved periods</option>';
-            const selected=records.find(r=>r.id===selectedCogsPeriodId);
-            if(!selected){
-                summary.innerHTML='<div style="padding:22px;text-align:center;color:#657786">No monthly food-cost results saved for this property. Select <strong>+ Add Monthly Food Cost</strong> to begin.</div>';
-                history.innerHTML='<div style="padding:16px;text-align:center;color:#777">No historical records.</div>';
-                if(actions)actions.innerHTML='';
-                return;
-            }
-            const reportedPct=Number(selected.reportedPct)||0;
-            const theoPct=Number(selected.theoreticalPct)||0;
-            const adjustedTheoCost=(Number(selected.reportedSales)||0)*(theoPct/100);
-            const adjustedDollar=(Number(selected.reportedCost)||0)-adjustedTheoCost;
-            const points=reportedPct-theoPct;
-            const color=adjustedDollar>0?'#e74c3c':'#18bc9c';
-            const status=adjustedDollar>0?'Unfavourable':(adjustedDollar<0?'Favourable':'On theoretical');
-            if(actions)actions.innerHTML=`<button class="action-btn" onclick="openMonthlyFoodCostModal('${selected.id}')">Edit Period</button><button class="action-btn" style="background:var(--cancel)" onclick="deleteMonthlyFoodCostRecord('${selected.id}')">Delete</button>`;
-            const card=(label,value,style='')=>`<div class="recipe-meta-card"><strong>${label}</strong><span style="font-size:1.05rem;font-weight:700;${style}">${value}</span></div>`;
-            summary.innerHTML=`
-                <div class="cogs-section-label">Hotel-Reported Results</div>
-                <div class="cogs-card-row cogs-card-row-3">
-                    ${card('Reported Food Sales',`$${selected.reportedSales.toFixed(2)}`)}
-                    ${card('Reported Food Cost',`$${selected.reportedCost.toFixed(2)}`)}
-                    ${card('Reported FC',`${reportedPct.toFixed(2)}%`)}
-                </div>
-                <div class="cogs-section-label">Direct Theoretical Results</div>
-                <div class="cogs-card-row cogs-card-row-3">
-                    ${card('Theoretical Sales',`$${selected.theoreticalSales.toFixed(2)}`)}
-                    ${card('Theoretical Cost',`$${selected.theoreticalCost.toFixed(2)}`)}
-                    ${card('Theoretical FC',`${theoPct.toFixed(2)}%`)}
-                </div>
-                <div class="cogs-section-label">Like-for-Like Variance at Reported Sales</div>
-                <div class="cogs-card-row cogs-card-row-4">
-                    ${card('Adjusted Theoretical Cost',`$${adjustedTheoCost.toFixed(2)}`)}
-                    ${card('Adjusted Cost Variance',`${adjustedDollar>=0?'+':''}$${adjustedDollar.toFixed(2)}`,`color:${color}`)}
-                    ${card('FC Point Variance',`${points>=0?'+':''}${points.toFixed(2)} pts`,`color:${color}`)}
-                    ${card('Status',status,`color:${color}`)}
-                </div>
-                ${selected.notes?`<div class="cogs-notes"><strong>Notes:</strong> ${escapeHtml(selected.notes)}</div>`:''}`;
-            history.innerHTML=`<table class="cogs-history-table"><thead><tr><th>Period</th><th>Reported Sales</th><th>Reported Cost</th><th>Reported FC</th><th>Theo FC</th><th>Adjusted Theo Cost</th><th>Adjusted Cost Var.</th><th>FC Var. (pts)</th><th>Status</th><th>Actions</th></tr></thead><tbody>${records.map(r=>{
-                const rp=Number(r.reportedPct)||0,tp=Number(r.theoreticalPct)||0;
-                const adjusted=(Number(r.reportedSales)||0)*(tp/100);
-                const variance=(Number(r.reportedCost)||0)-adjusted;
-                const pts=rp-tp;
-                const c=variance>0?'#e74c3c':'#18bc9c';
-                const st=variance>0?'Unfavourable':(variance<0?'Favourable':'On theoretical');
-                return `<tr><td>${escapeHtml(r.start)}<br><span class="history-date-to">to ${escapeHtml(r.end)}</span></td><td>$${r.reportedSales.toFixed(2)}</td><td>$${r.reportedCost.toFixed(2)}</td><td>${rp.toFixed(2)}%</td><td>${tp.toFixed(2)}%</td><td>$${adjusted.toFixed(2)}</td><td style="color:${c};font-weight:700">${variance>=0?'+':''}$${variance.toFixed(2)}</td><td style="color:${c};font-weight:700">${pts>=0?'+':''}${pts.toFixed(2)} pts</td><td style="color:${c};font-weight:700">${st}</td><td class="history-actions"><button class="action-btn" onclick="selectCogsPeriod('${r.id}');openMonthlyFoodCostModal('${r.id}')">Edit</button><button class="action-btn" style="background:var(--cancel)" onclick="deleteMonthlyFoodCostRecord('${r.id}')">Delete</button></td></tr>`;
-            }).join('')}</tbody></table>`;
+            const summary=document.getElementById('cogsDashboardSummary'),history=document.getElementById('cogsDashboardHistory'),selector=document.getElementById('cogsPeriodSelector'),actions=document.getElementById('cogsSelectedActions'),budgetInput=document.getElementById('propertyBudgetFc');
+            if(!summary||!history||!selector)return;if(budgetInput)budgetInput.value=currentPropertyBudgetFc()?currentPropertyBudgetFc().toFixed(2):'';
+            const records=cogsRecords();if(!records.some(r=>r.id===selectedCogsPeriodId))selectedCogsPeriodId=records[0]?.id||'';
+            selector.innerHTML=records.length?records.map(r=>`<option value="${escapeHtml(r.id)}" ${r.id===selectedCogsPeriodId?'selected':''}>${escapeHtml(r.start)} to ${escapeHtml(r.end)}</option>`).join(''):'<option value="">No saved periods</option>';
+            const r=records.find(x=>x.id===selectedCogsPeriodId);
+            if(!r){summary.innerHTML='<div style="padding:22px;text-align:center;color:#657786">No monthly food-cost results saved for this property.</div>';history.innerHTML='<div style="padding:16px;text-align:center;color:#777">No historical records.</div>';if(actions)actions.innerHTML='';return;}
+            const m=cogsMetrics(r),pc=varianceColor(m.productUsageGap),bc=varianceColor(m.budgetCostVariance),tc=varianceColor(m.theoVsBudgetPts),rc=varianceColor(m.reportedVsTheoPts);
+            if(actions)actions.innerHTML=`<button class="action-btn" onclick="openMonthlyFoodCostModal('${r.id}')">Edit Period</button><button class="action-btn" style="background:var(--cancel)" onclick="deleteMonthlyFoodCostRecord('${r.id}')">Delete</button>`;
+            const card=(label,value,style='',note='')=>`<div class="recipe-meta-card"><strong>${label}</strong><span style="font-size:1.05rem;font-weight:700;${style}">${value}</span>${note?`<div class="cogs-explainer">${note}</div>`:''}</div>`;
+            summary.innerHTML=`<div class="cogs-section-label">Hotel-Reported Results</div><div class="cogs-card-row cogs-card-row-3">${card('Reported Food Sales',`$${m.reportedSales.toFixed(2)}`)}${card('Reported Food Cost',`$${m.reportedCost.toFixed(2)}`)}${card('Reported FC',`${m.reportedPct.toFixed(2)}%`)}</div>
+            <div class="cogs-section-label">Direct Theoretical Results</div><div class="cogs-card-row cogs-card-row-3">${card('Theoretical Sales',`$${r.theoreticalSales.toFixed(2)}`)}${card('Theoretical Cost',`$${r.theoreticalCost.toFixed(2)}`)}${card('Theoretical FC',`${m.theoPct.toFixed(2)}%`)}</div>
+            <div class="cogs-section-label">Monthly Food Cost Performance</div><div class="cogs-performance-costs">${card('Budget Allowable Cost',m.budgetPct?`$${m.budgetAllowable.toFixed(2)}`:'Not set','',m.budgetPct?`${m.budgetPct.toFixed(2)}% of reported sales`:'Set the property budget above')}${card('Theoretical Expected Cost',`$${m.theoExpected.toFixed(2)}`,'',`${m.theoPct.toFixed(2)}% of reported sales`)}${card('Hotel-Reported Cost',`$${m.reportedCost.toFixed(2)}`,'',`${m.reportedPct.toFixed(2)}% of reported sales`)}</div>
+            <div class="cogs-performance-variances">${card('Product Usage Gap',`${m.productUsageGap>=0?'+':''}$${m.productUsageGap.toFixed(2)}`,`color:${pc}`,`${m.reportedVsTheoPts>=0?'+':''}${m.reportedVsTheoPts.toFixed(2)} pts vs theoretical`)}${card('Budget Cost Variance',m.budgetPct?`${m.budgetCostVariance>=0?'+':''}$${m.budgetCostVariance.toFixed(2)}`:'Not set',m.budgetPct?`color:${bc}`:'',m.budgetPct?varianceStatus(m.budgetCostVariance):'Budget required')}${card('Theoretical vs Budget',m.budgetPct?`${m.theoVsBudgetPts>=0?'+':''}${m.theoVsBudgetPts.toFixed(2)} pts`:'Not set',m.budgetPct?`color:${tc}`:'',m.budgetPct?varianceStatus(m.theoVsBudgetPts):'Budget required')}${card('Reported vs Theoretical',`${m.reportedVsTheoPts>=0?'+':''}${m.reportedVsTheoPts.toFixed(2)} pts`,`color:${rc}`,varianceStatus(m.reportedVsTheoPts))}${card('Overall Status',m.budgetPct?varianceStatus(m.budgetCostVariance):varianceStatus(m.productUsageGap),`color:${m.budgetPct?bc:pc}`)}</div>${r.notes?`<div class="cogs-notes"><strong>Notes:</strong> ${escapeHtml(r.notes)}</div>`:''}`;
+            history.innerHTML=`<table class="cogs-history-table"><thead><tr><th>Period</th><th>Reported Sales</th><th>Budget FC</th><th>Theo FC</th><th>Reported FC</th><th>Budget Allowable</th><th>Theo Expected</th><th>Product Usage Gap</th><th>Budget Cost Var.</th><th>FC vs Theo</th><th>Status</th><th>Actions</th></tr></thead><tbody>${records.map(x=>{const q=cogsMetrics(x),pcol=varianceColor(q.productUsageGap),bcol=varianceColor(q.budgetCostVariance),status=q.budgetPct?varianceStatus(q.budgetCostVariance):varianceStatus(q.productUsageGap);return `<tr><td>${escapeHtml(x.start)}<br><span class="history-date-to">to ${escapeHtml(x.end)}</span></td><td>$${q.reportedSales.toFixed(2)}</td><td>${q.budgetPct?q.budgetPct.toFixed(2)+'%':'-'}</td><td>${q.theoPct.toFixed(2)}%</td><td>${q.reportedPct.toFixed(2)}%</td><td>${q.budgetPct?'$'+q.budgetAllowable.toFixed(2):'-'}</td><td>$${q.theoExpected.toFixed(2)}</td><td style="color:${pcol};font-weight:700">${q.productUsageGap>=0?'+':''}$${q.productUsageGap.toFixed(2)}</td><td style="color:${bcol};font-weight:700">${q.budgetPct?(q.budgetCostVariance>=0?'+':'')+'$'+q.budgetCostVariance.toFixed(2):'-'}</td><td>${q.reportedVsTheoPts>=0?'+':''}${q.reportedVsTheoPts.toFixed(2)} pts</td><td>${status}</td><td class="history-actions"><button class="action-btn" onclick="selectCogsPeriod('${x.id}');openMonthlyFoodCostModal('${x.id}')">Edit</button><button class="action-btn" style="background:var(--cancel)" onclick="deleteMonthlyFoodCostRecord('${x.id}')">Delete</button></td></tr>`}).join('')}</tbody></table>`;
+        }
+        function safeFilePart(value){return String(value||'').replace(/[^a-z0-9 _-]/gi,'').replace(/\s+/g,' ').trim();}
+        function exportSelectedCogsPdf(){
+            const r=cogsRecords().find(x=>x.id===selectedCogsPeriodId);if(!r){showToast('Select a saved monthly period before exporting.','warning');return;}
+            if(!window.jspdf?.jsPDF){showToast('PDF library did not load. Check the internet connection and refresh the page.','error');return;}
+            const m=cogsMetrics(r),{jsPDF}=window.jspdf,doc=new jsPDF({orientation:'landscape',unit:'pt',format:'letter'});const width=doc.internal.pageSize.getWidth();
+            doc.setFont('helvetica','bold');doc.setFontSize(18);doc.text(`${currentProperty} COGS Report`,38,42);doc.setFont('helvetica','normal');doc.setFontSize(10);doc.text(`Reporting period: ${r.start} to ${r.end}`,38,60);doc.text(`Generated: ${new Date().toLocaleDateString('en-CA')}`,width-180,42);
+            const rows=[['Reported Food Sales',`$${m.reportedSales.toFixed(2)}`],['Budget FC',m.budgetPct?`${m.budgetPct.toFixed(2)}%`:'Not set'],['Theoretical FC',`${m.theoPct.toFixed(2)}%`],['Reported FC',`${m.reportedPct.toFixed(2)}%`],['Budget Allowable Cost',m.budgetPct?`$${m.budgetAllowable.toFixed(2)}`:'Not set'],['Theoretical Expected Cost',`$${m.theoExpected.toFixed(2)}`],['Hotel-Reported Cost',`$${m.reportedCost.toFixed(2)}`],['Product Usage Gap',`${m.productUsageGap>=0?'+':''}$${m.productUsageGap.toFixed(2)}`],['Budget Cost Variance',m.budgetPct?`${m.budgetCostVariance>=0?'+':''}$${m.budgetCostVariance.toFixed(2)}`:'Not set'],['Theoretical vs Budget',m.budgetPct?`${m.theoVsBudgetPts>=0?'+':''}${m.theoVsBudgetPts.toFixed(2)} pts`:'Not set'],['Reported vs Theoretical',`${m.reportedVsTheoPts>=0?'+':''}${m.reportedVsTheoPts.toFixed(2)} pts`],['Overall Status',m.budgetPct?varianceStatus(m.budgetCostVariance):varianceStatus(m.productUsageGap)]];
+            doc.autoTable({startY:78,head:[['Performance Measure','Result']],body:rows,theme:'grid',styles:{fontSize:9,cellPadding:5},headStyles:{fillColor:[44,62,80]},columnStyles:{0:{cellWidth:230},1:{cellWidth:150}}});
+            let y=doc.lastAutoTable.finalY+18;if(r.notes){doc.setFont('helvetica','bold');doc.text('Notes:',38,y);doc.setFont('helvetica','normal');doc.text(doc.splitTextToSize(r.notes,width-110),78,y);y+=35;}
+            doc.setFontSize(8);doc.setTextColor(90);doc.text('Product Usage Gap = Hotel-Reported Cost minus Theoretical Expected Cost at Reported Sales.',38,doc.internal.pageSize.getHeight()-38);doc.text('Budget Cost Variance = Hotel-Reported Cost minus Budget Allowable Cost at Reported Sales.',38,doc.internal.pageSize.getHeight()-25);
+            const monthYear=new Date(`${r.start}T12:00:00`).toLocaleDateString('en-US',{month:'long',year:'numeric'});doc.save(`${safeFilePart(currentProperty)} COGS Report - ${safeFilePart(monthYear)}.pdf`);
         }
 
         function renderPropertyMenus() {
@@ -2293,6 +2293,7 @@ Recipe lines: ${usage.recipeLines.slice(0,12).join(', ')||'None'}`);return;}if(!
                 propertyMenuDatabase.forEach(m => { if(m.property === oldName) m.property = newName; });
                 itemDatabase.forEach(i => { if(i.scope === 'property' && i.property === oldName) i.property = newName; });
                 
+                if (propertyBudgetFcDatabase[oldName] !== undefined) { propertyBudgetFcDatabase[newName]=propertyBudgetFcDatabase[oldName]; delete propertyBudgetFcDatabase[oldName]; }
                 if (currentProperty === oldName) currentProperty = newName;
             } else {
                 propertyDatabase.push(newName);
@@ -2331,6 +2332,7 @@ Recipe lines: ${usage.recipeLines.slice(0,12).join(', ')||'None'}`);return;}if(!
                 prepDatabase = prepDatabase.filter(p => p.property !== propName);
                 menuDatabase = menuDatabase.filter(m => m.property !== propName);
                 propertyMenuDatabase = propertyMenuDatabase.filter(m => m.property !== propName);
+                delete propertyBudgetFcDatabase[propName];
                 const ownedItems=itemDatabase.filter(i=>i.scope==='property'&&i.property===propName);
                 const usedOwned=ownedItems.filter(i=>getItemRecipeUsageAcrossProperties(i.id).length);
                 if(usedOwned.length){alert('Cannot delete this property because property items are still used by recipes: '+usedOwned.map(i=>i.name).join(', '));return;}
