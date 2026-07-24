@@ -2176,7 +2176,8 @@ ${propertyDatabase.join('\n')}`,current);
             const short={L:'L',ML:'mL',FL_OZ:'fl oz',Cups:'cups',Tbsp:'tbsp',Tsp:'tsp',KG:'kg',G:'g',LBS:'lb',OZ:'oz',Each:'each',Portion:'portion'};
             return compact?(short[value]||value):(UNIT_LABELS[value]||value);
         }
-        function ingredientUnitLabel(ing){return unitDisplayLabel(ing?.unit,ing?.qty);}
+        function ingredientUnitLabel(ing) {return unitDisplayLabel(ing?.unit, ing?.qty, { compact: true });
+		}
         function renderCustomRecipeUnitTable(){
             const body=document.getElementById('customRecipeUnitTableBody'); if(!body)return;
             body.innerHTML=customRecipeUnitDatabase.length?customRecipeUnitDatabase.slice().sort((a,b)=>a.singular.localeCompare(b.singular)).map(u=>`<tr><td>${escapeHtml(u.singular)}</td><td>${escapeHtml(u.plural)}</td><td><button class="action-btn" onclick="editCustomRecipeUnit('${u.id}')">Edit</button><button class="action-btn" style="background:var(--cancel)" onclick="deleteCustomRecipeUnit('${u.id}')">X</button></td></tr>`).join(''):'<tr><td colspan="3" style="color:#777;text-align:center">No custom recipe units added yet.</td></tr>';
