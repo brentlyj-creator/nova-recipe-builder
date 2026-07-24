@@ -1,5 +1,5 @@
 
-	
+		//--- Brent ---
         // --- Database Arrays ---
         let propertyDatabase = ["Hotel Alpha", "Hotel Beta", "Hotel Gamma"];
         let categoryDatabase = ["Food", "Liquor", "Wine", "Beer"];
@@ -108,7 +108,7 @@
             el.style.cssText=`width:${widthPx}px;font-family:Century Gothic,Arial,sans-serif;font-size:${fontPt}pt;line-height:1.7;box-sizing:border-box;padding:${list?'0 0 0 18px':'0'};margin:0;white-space:normal;overflow-wrap:anywhere;`;
             el.innerHTML=html||''; host.appendChild(el); const height=el.scrollHeight; el.remove(); return height;
         }
-        function ingredientHtml(recipe, isMenu=false) { const rows=(isMenu?getNonCreditIngredients(recipe):(recipe.ingredients||[])); return rows.length?rows.map(i=>`<li>${escapeHtml(i.qty)} ${escapeHtml(ingredientUnitLabel(i))} — ${escapeHtml(i.name)}</li>`).join(''):'<li>No ingredients listed.</li>'; }
+        function ingredientHtml(recipe, isMenu=false) { const rows=(isMenu?getNonCreditIngredients(recipe):(recipe.ingredients||[])); return rows.length?rows.map(i=>`<li>${escapeHtml(i.qty)} ${escapeHtml(ingredientUnitLabel(i))} â€” ${escapeHtml(i.name)}</li>`).join(''):'<li>No ingredients listed.</li>'; }
         function fitFont(html,width,height,normal=9,min=7,list=false){ const allowed=height*EXPORT_FIT.safety; for(let pt=normal;pt>=min;pt-=0.5){const used=measureExportHtml(html,width,pt,list);if(used<=allowed)return {fits:true,fontPt:pt,usedPct:Math.min(100,Math.round(used/allowed*100)),height:used,allowed};} const used=measureExportHtml(html,width,min,list);return {fits:false,fontPt:min,usedPct:Math.round(used/allowed*100),height:used,allowed}; }
         function measureMenuPrepHtml(html,widthPx,fontPt) {
             const host=ensureMeasureHost(); const el=document.createElement('div');
@@ -143,17 +143,17 @@
             const result={type,pages:Math.min(pages,EXPORT_FIT.maxPages),requiredPages:pages,ingredientsContinued:!ingOne.fits,ingredients:ingOne,steps:stepFit,tips:tipsFit,overflow:over.length>0,overflowBlocks:over};
             exportFitCache.set(key,result); return result;
         }
-        function exportStatusText(f){if(!f)return '';if(f.overflow)return `⚠ Text Overflow — ${f.overflowBlocks.join(' and ')}`;if(f.pages>=4)return '4-page layout — Review recommended';if(f.pages>1)return `${f.pages}-page layout — Ingredients continued`;return '';}
+        function exportStatusText(f){if(!f)return '';if(f.overflow)return `âš  Text Overflow â€” ${f.overflowBlocks.join(' and ')}`;if(f.pages>=4)return '4-page layout â€” Review recommended';if(f.pages>1)return `${f.pages}-page layout â€” Ingredients continued`;return '';}
         function exportStatusHtml(f){const text=exportStatusText(f);if(!text)return '';return `<span class="export-status ${f.overflow?'over':'warn'}">${escapeHtml(text)}</span>`;}
         function statusRank(f,mode){if(mode==='export-issues')return f.overflow?0:(f.pages>1?1:2);if(mode==='export-pages')return f.pages>1?0:(f.overflow?1:2);return 0;}
-        function meterText(f,block){const part=block==='tips'?f.tips:f.steps;if(!part.fits)return `Text Overflow — ${block==='tips'?'Tips / Notes':'Steps of Preparation'} cannot fit at the 7 pt minimum`;const layout=f.pages>1?`${f.pages}-page layout`:'One-page layout';return `${layout} — Export Fit: ${part.usedPct}% used — fits at ${part.fontPt===9?'the normal 9':part.fontPt} pt`;}
+        function meterText(f,block){const part=block==='tips'?f.tips:f.steps;if(!part.fits)return `Text Overflow â€” ${block==='tips'?'Tips / Notes':'Steps of Preparation'} cannot fit at the 7 pt minimum`;const layout=f.pages>1?`${f.pages}-page layout`:'One-page layout';return `${layout} â€” Export Fit: ${part.usedPct}% used â€” fits at ${part.fontPt===9?'the normal 9':part.fontPt} pt`;}
         function paintMeter(id,text,cls){const el=document.getElementById(id);if(!el)return;el.textContent=text;el.className=`export-fit-meter ${cls}`;}
         function updateEditorExportFit(type){
             const menu=type==='menu'; const recipe={id:'__editing__'+type,ingredients:menu?currentMenuIngredients:currentPrepIngredients,steps:document.getElementById(menu?'menuSteps':'prepSteps')?.innerHTML||'',tipsNotes:menu?(document.getElementById('menuTipsNotes')?.innerHTML||''):''};
             exportFitCache.delete(`${type}:${recipe.id}`); const f=evaluateRecipeFit(recipe,type,true);
             paintMeter(menu?'menuStepsFitMeter':'prepStepsFitMeter',meterText(f,'steps'),!f.steps.fits?'fit-over':(f.steps.fontPt<9||f.pages>=4?'fit-warn':'fit-ok'));
             if(menu)paintMeter('menuTipsFitMeter',meterText(f,'tips'),!f.tips.fits?'fit-over':(f.tips.fontPt<9?'fit-warn':'fit-ok'));
-            const sum=document.getElementById(menu?'menuExportFitSummary':'prepExportFitSummary'); if(sum){if(f.overflow){sum.className='export-fit-summary fit-over';sum.textContent=`⚠ Text Overflow — ${f.overflowBlocks.join(' and ')}. The recipe can be saved, but bulk export will skip it until adjusted.`;}else if(f.pages>=4){sum.className='export-fit-summary fit-warn';sum.textContent='4-page layout — Review recommended. This recipe fits but has reached the maximum recommended length.';}else{sum.className='export-fit-summary';sum.textContent='';}}
+            const sum=document.getElementById(menu?'menuExportFitSummary':'prepExportFitSummary'); if(sum){if(f.overflow){sum.className='export-fit-summary fit-over';sum.textContent=`âš  Text Overflow â€” ${f.overflowBlocks.join(' and ')}. The recipe can be saved, but bulk export will skip it until adjusted.`;}else if(f.pages>=4){sum.className='export-fit-summary fit-warn';sum.textContent='4-page layout â€” Review recommended. This recipe fits but has reached the maximum recommended length.';}else{sum.className='export-fit-summary';sum.textContent='';}}
         }
         const debouncedPrepFit=debounce(()=>updateEditorExportFit('prep'),180), debouncedMenuFit=debounce(()=>updateEditorExportFit('menu'),180);
         function invalidateRecipeFit(id,type){exportFitCache.delete(`${type}:${id}`);}
@@ -290,7 +290,7 @@
 
             const html = `<!DOCTYPE html>
             <html><head><meta charset="UTF-8">
-            <title>${currentProperty} — ${menu.name}</title>
+            <title>${currentProperty} â€” ${menu.name}</title>
             <style>
                 body { font-family: 'Segoe UI', sans-serif; margin: 30px; color: #333; }
                 h1 { font-size: 1.4rem; margin-bottom: 2px; }
@@ -308,7 +308,7 @@
                 }
             </style>
             </head><body>
-            <h1>${currentProperty} — ${menu.name}</h1>
+            <h1>${currentProperty} â€” ${menu.name}</h1>
             <div class="subtitle">Generated: ${date}</div>
             <table>
                 <thead>
@@ -342,7 +342,7 @@
             // No main-page re-render here; this keeps menu sorting and drag/drop responsive after printing.
         }
 		
-		        const HACCP_TEXT = `<strong>HACCP:</strong> Measure all temperatures with a cleaned and sanitized thermometer. Wash hands before handling food, after handling raw foods, and after any activity that may contaminate hands. Wash, rinse, and sanitize all equipment and utensils before and after use. Return all ingredients to refrigerated storage if preparation is delayed or interrupted. Heat any product needed to an internal temperature reaches 165°F CCP-1, transfer into an appropriate container and cool to 45°F CCP-2 then cover, label and refrigerate below 40°F CCP-3.`;
+		        const HACCP_TEXT = `<strong>HACCP:</strong> Measure all temperatures with a cleaned and sanitized thermometer. Wash hands before handling food, after handling raw foods, and after any activity that may contaminate hands. Wash, rinse, and sanitize all equipment and utensils before and after use. Return all ingredients to refrigerated storage if preparation is delayed or interrupted. Heat any product needed to an internal temperature reaches 165Â°F CCP-1, transfer into an appropriate container and cool to 45Â°F CCP-2 then cover, label and refrigerate below 40Â°F CCP-3.`;
 
         function splitTextBlocks(html, count) {
             const t=document.createElement('template');t.innerHTML=normalizeExportHtml(html||'');
@@ -361,8 +361,8 @@
             const ingChunks=Array.from({length:pages},(_,i)=>ingredients.slice(i*perPage,(i+1)*perPage));
             const stepChunks=splitTextBlocks(recipe.steps||'',pages);
             return Array.from({length:pages},(_,i)=>`<div class="recipe-card ${i?'continuation-card':''}">
-                <div class="card-left"><div class="section-label">${i?'INGREDIENTS — CONTINUED':'INGREDIENTS'}</div><ul class="ingredient-list">${(ingChunks[i]||[]).map(ing=>`<li>${escapeHtml(ing.qty)} ${escapeHtml(ingredientUnitLabel(ing))} — ${escapeHtml(ing.name)}</li>`).join('')||'<li>No additional ingredients on this page.</li>'}</ul>${i===0?`<div class="meta-block"><div><em><strong>Yield: ${yieldDisplay}</strong></em></div><div><em><strong>Shelf Life: ${shelfLife}</strong></em></div></div>`:''}</div>
-                <div class="card-divider"></div><div class="card-right">${i===0?`<h1 class="recipe-title">${escapeHtml(recipe.name)}</h1>`:`<div class="continuation-title">${escapeHtml(recipe.name)} | Page ${i+1} of ${pages}</div>`}<div class="section-label">${i?'PREPARATION — CONTINUED':'PREPARATION'}</div><div class="prep-steps" style="font-size:${fit.steps.fontPt}pt">${stepChunks[i]||''}</div>${i===pages-1?`<div class="hccap">${HACCP_TEXT}</div>`:''}</div></div>`).join('');
+                <div class="card-left"><div class="section-label">${i?'INGREDIENTS â€” CONTINUED':'INGREDIENTS'}</div><ul class="ingredient-list">${(ingChunks[i]||[]).map(ing=>`<li>${escapeHtml(ing.qty)} ${escapeHtml(ingredientUnitLabel(ing))} â€” ${escapeHtml(ing.name)}</li>`).join('')||'<li>No additional ingredients on this page.</li>'}</ul>${i===0?`<div class="meta-block"><div><em><strong>Yield: ${yieldDisplay}</strong></em></div><div><em><strong>Shelf Life: ${shelfLife}</strong></em></div></div>`:''}</div>
+                <div class="card-divider"></div><div class="card-right">${i===0?`<h1 class="recipe-title">${escapeHtml(recipe.name)}</h1>`:`<div class="continuation-title">${escapeHtml(recipe.name)} | Page ${i+1} of ${pages}</div>`}<div class="section-label">${i?'PREPARATION â€” CONTINUED':'PREPARATION'}</div><div class="prep-steps" style="font-size:${fit.steps.fontPt}pt">${stepChunks[i]||''}</div>${i===pages-1?`<div class="hccap">${HACCP_TEXT}</div>`:''}</div></div>`).join('');
         }
               function getPrepCardStyles() {
             return `
@@ -478,7 +478,7 @@
             const cards = recipes.map(r => buildPrepRecipeCardHTML(r)).join('');
             const w = window.open('', '_blank');
             w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-                <title>${currentProperty} — All Prep Recipes</title>
+                <title>${currentProperty} â€” All Prep Recipes</title>
                 <style>${getPrepCardStyles()}</style>
                 </head><body>
                 ${cards}
@@ -656,24 +656,26 @@ function executeBulkExport() {
 
                 function loadAllDataFromBrowser() {
             try {
-                let raw = localStorage.getItem(APP_STORAGE_KEY);
-                let loadedLegacyKey = null;
-                if (!raw) {
-                    for (const key of LEGACY_STORAGE_KEYS) {
-                        raw = localStorage.getItem(key);
-                        if (raw) { loadedLegacyKey = key; break; }
-                    }
-                }
-                if (!raw) return false;
-                applyAppDataPayload(JSON.parse(raw));
+                const keys=[APP_STORAGE_KEY,...LEGACY_STORAGE_KEYS];
+                const candidates=[];
+                keys.forEach(key=>{
+                    const raw=localStorage.getItem(key); if(!raw)return;
+                    try{
+                        const data=JSON.parse(raw);
+                        const score=['itemDatabase','prepDatabase','menuDatabase','propertyMenuDatabase','monthlyFoodCostDatabase'].reduce((sum,name)=>sum+(Array.isArray(data[name])?data[name].length:0),0);
+                        candidates.push({key,data,score,current:key===APP_STORAGE_KEY});
+                    }catch(err){console.warn('Ignoring unreadable saved data key:',key);}
+                });
+                if(!candidates.length)return false;
+                candidates.sort((a,b)=>b.score-a.score||Number(b.current)-Number(a.current));
+                const chosen=candidates[0];
+                applyAppDataPayload(chosen.data);
                 reconcilePrepCategories();
                 refreshAllUI();
-                if (loadedLegacyKey) saveAllDataToBrowser(false);
+                if(chosen.key!==APP_STORAGE_KEY)saveAllDataToBrowser(false);
                 return true;
             } catch (err) { console.error(err); return false; }
         }
-
-
         // --- PWA + LOCAL BACKUP FOLDER SUPPORT ---
         const BACKUP_DB_NAME = 'nova_recipe_builder_backup_db';
         const BACKUP_STORE_NAME = 'settings';
@@ -1279,7 +1281,21 @@ function executeBulkExport() {
 
         function currentPropertyMenuTotals(){ const menus=getCurrentPropertyMenus();let sales=0,cost=0;menus.forEach(m=>{const t=calculateMenuTotals(m);sales+=t.sales;cost+=t.cost});return {menus,sales,cost,pct:sales?cost/sales*100:0}; }
         function openMonthlyFoodCostModal(id=''){
-            const rec=monthlyFoodCostDatabase.find(r=>r.id===id);document.getElementById('monthlyFoodCostEditId').value=rec?.id||'';document.getElementById('monthlyFoodCostStart').value=rec?.start||'';document.getElementById('monthlyFoodCostEnd').value=rec?.end||'';document.getElementById('monthlyFoodSales').value=rec?.reportedSales??'';document.getElementById('monthlyFoodCost').value=rec?.reportedCost??'';document.getElementById('monthlyFoodCostPct').value=rec?.reportedPct??'';document.getElementById('monthlyFoodCostNotes').value=rec?.notes||'';syncMonthlyFoodCostInputs('load');document.getElementById('monthlyFoodCostModal').style.display='block';
+            const modal=document.getElementById('monthlyFoodCostModal');
+            if(!modal){showToast('Monthly Food Cost form could not be opened. Refresh the page after deployment.','error');return;}
+            if(modal.parentElement!==document.body)document.body.appendChild(modal);
+            const rec=monthlyFoodCostDatabase.find(r=>r.id===id);
+            document.getElementById('monthlyFoodCostEditId').value=rec?.id||'';
+            document.getElementById('monthlyFoodCostStart').value=rec?.start||'';
+            document.getElementById('monthlyFoodCostEnd').value=rec?.end||'';
+            document.getElementById('monthlyFoodSales').value=rec?.reportedSales??'';
+            document.getElementById('monthlyFoodCost').value=rec?.reportedCost??'';
+            document.getElementById('monthlyFoodCostPct').value=rec?.reportedPct??'';
+            document.getElementById('monthlyFoodCostNotes').value=rec?.notes||'';
+            syncMonthlyFoodCostInputs('load');
+            modal.style.display='block';
+            modal.setAttribute('aria-hidden','false');
+            setTimeout(()=>document.getElementById('monthlyFoodCostStart')?.focus(),0);
         }
         function syncMonthlyFoodCostInputs(source){
             const sales=parseFloat(document.getElementById('monthlyFoodSales')?.value),cost=parseFloat(document.getElementById('monthlyFoodCost')?.value),pct=parseFloat(document.getElementById('monthlyFoodCostPct')?.value),note=document.getElementById('monthlyFoodCostCalcNote');
@@ -1293,22 +1309,17 @@ function executeBulkExport() {
             const t=currentPropertyMenuTotals(),record={id:id||generateId('FC'),property:currentProperty,start,end,reportedSales,reportedCost,reportedPct:calculatedPct,notes,theoreticalSales:t.sales,theoreticalCost:t.cost,theoreticalPct:t.pct,savedAt:new Date().toISOString()};const idx=monthlyFoodCostDatabase.findIndex(r=>r.id===id);if(idx>=0)monthlyFoodCostDatabase[idx]=record;else monthlyFoodCostDatabase.push(record);closeModal('monthlyFoodCostModal');renderMonthlyFoodCostSummary();saveAllDataToBrowser(false);showToast('Monthly food cost saved with a theoretical snapshot.','success');
         }
         function deleteMonthlyFoodCostRecord(id){const r=monthlyFoodCostDatabase.find(x=>x.id===id);if(!r||!confirm(`Delete the food-cost period ${r.start} to ${r.end}?`))return;monthlyFoodCostDatabase=monthlyFoodCostDatabase.filter(x=>x.id!==id);renderMonthlyFoodCostSummary();saveAllDataToBrowser(false);}
-        let selectedCogsPeriodId = '';
+        let selectedCogsPeriodId='';
         function cogsRecords(){return monthlyFoodCostDatabase.filter(r=>r.property===currentProperty).sort((a,b)=>String(b.end).localeCompare(String(a.end)));}
         function selectCogsPeriod(id){selectedCogsPeriodId=id||'';renderCogsDashboard();}
         function renderMonthlyFoodCostSummary(){renderCogsDashboard();}
         function renderCogsDashboard(){
-            const summary=document.getElementById('cogsDashboardSummary'),history=document.getElementById('cogsDashboardHistory'),selector=document.getElementById('cogsPeriodSelector'),actions=document.getElementById('cogsSelectedActions');
-            if(!summary||!history||!selector)return;
-            const records=cogsRecords(); if(!records.some(r=>r.id===selectedCogsPeriodId))selectedCogsPeriodId=records[0]?.id||'';
-            selector.innerHTML=records.length?records.map(r=>`<option value="${escapeHtml(r.id)}" ${r.id===selectedCogsPeriodId?'selected':''}>${escapeHtml(r.start)} to ${escapeHtml(r.end)}</option>`).join(''):'<option value="">No saved periods</option>';
-            const selected=records.find(r=>r.id===selectedCogsPeriodId);
-            if(!selected){summary.innerHTML='<div style="padding:22px;text-align:center;color:#657786">No monthly food-cost results saved for this property. Select <strong>+ Add Monthly Food Cost</strong> to begin.</div>';history.innerHTML='<div style="padding:16px;text-align:center;color:#777">No historical records.</div>';if(actions)actions.innerHTML='';return;}
-            const dollar=selected.reportedCost-selected.theoreticalCost, variancePct=selected.reportedSales?dollar/selected.reportedSales*100:0, points=selected.reportedPct-selected.theoreticalPct, bad=dollar>0,color=bad?'#e74c3c':'#18bc9c',status=dollar>0?'Unfavourable':(dollar<0?'Favourable':'On theoretical');
-            if(actions)actions.innerHTML=`<button class="action-btn" onclick="openMonthlyFoodCostModal('${selected.id}')">Edit Period</button><button class="action-btn" style="background:var(--cancel)" onclick="deleteMonthlyFoodCostRecord('${selected.id}')">Delete</button>`;
-            const card=(label,value,style='')=>`<div class="recipe-meta-card"><strong>${label}</strong><span style="font-size:1.05rem;font-weight:700;${style}">${value}</span></div>`;
-            summary.innerHTML=`<div class="cogs-summary-grid">${card('Reporting Period',`${escapeHtml(selected.start)} to ${escapeHtml(selected.end)}`)}${card('Reported Food Sales',`$${selected.reportedSales.toFixed(2)}`)}${card('Reported Food Cost',`$${selected.reportedCost.toFixed(2)}`)}${card('Reported FC',`${selected.reportedPct.toFixed(2)}%`)}${card('Theoretical Sales',`$${selected.theoreticalSales.toFixed(2)}`)}${card('Theoretical Cost',`$${selected.theoreticalCost.toFixed(2)}`)}${card('Theoretical FC',`${selected.theoreticalPct.toFixed(2)}%`)}${card('Variance $',`${dollar>=0?'+':''}$${dollar.toFixed(2)}`,`color:${color}`)}${card('Variance %',`${variancePct>=0?'+':''}${variancePct.toFixed(2)}%`,`color:${color}`)}${card('FC Point Variance',`${points>=0?'+':''}${points.toFixed(2)} pts`,`color:${color}`)}${card('Status',status,`color:${color}`)}</div>${selected.notes?`<div style="padding:10px 12px;background:#f8f9fa;border:1px solid var(--border-color);border-radius:5px"><strong>Notes:</strong> ${escapeHtml(selected.notes)}</div>`:''}`;
-            history.innerHTML=`<table><thead><tr><th>Period</th><th>Reported Sales</th><th>Reported Cost</th><th>Reported FC</th><th>Theo Sales</th><th>Theo Cost</th><th>Theo FC</th><th>Variance $</th><th>Variance %</th><th>FC Points</th><th>Status</th><th>Actions</th></tr></thead><tbody>${records.map(r=>{const v=r.reportedCost-r.theoreticalCost,vp=r.reportedSales?v/r.reportedSales*100:0,pt=r.reportedPct-r.theoreticalPct,st=v>0?'Unfavourable':(v<0?'Favourable':'On theoretical'),c=v>0?'#e74c3c':'#18bc9c';return `<tr><td>${escapeHtml(r.start)} to ${escapeHtml(r.end)}</td><td>$${r.reportedSales.toFixed(2)}</td><td>$${r.reportedCost.toFixed(2)}</td><td>${r.reportedPct.toFixed(2)}%</td><td>$${r.theoreticalSales.toFixed(2)}</td><td>$${r.theoreticalCost.toFixed(2)}</td><td>${r.theoreticalPct.toFixed(2)}%</td><td style="color:${c};font-weight:700">${v>=0?'+':''}$${v.toFixed(2)}</td><td style="color:${c}">${vp>=0?'+':''}${vp.toFixed(2)}%</td><td style="color:${c}">${pt>=0?'+':''}${pt.toFixed(2)}</td><td style="color:${c};font-weight:700">${st}</td><td><button class="action-btn" onclick="selectCogsPeriod('${r.id}');openMonthlyFoodCostModal('${r.id}')">Edit</button><button class="action-btn" style="background:var(--cancel)" onclick="deleteMonthlyFoodCostRecord('${r.id}')">Delete</button></td></tr>`}).join('')}</tbody></table>`;
+          const summary=document.getElementById('cogsDashboardSummary'),history=document.getElementById('cogsDashboardHistory'),selector=document.getElementById('cogsPeriodSelector'),actions=document.getElementById('cogsSelectedActions');if(!summary||!history||!selector)return;
+          const records=cogsRecords();if(!records.some(r=>r.id===selectedCogsPeriodId))selectedCogsPeriodId=records[0]?.id||'';selector.innerHTML=records.length?records.map(r=>`<option value="${escapeHtml(r.id)}" ${r.id===selectedCogsPeriodId?'selected':''}>${escapeHtml(r.start)} to ${escapeHtml(r.end)}</option>`).join(''):'<option>No saved periods</option>';
+          const r=records.find(x=>x.id===selectedCogsPeriodId);if(!r){summary.innerHTML='<p style="text-align:center;color:#777">No monthly results saved for this property.</p>';history.innerHTML='<p style="text-align:center;color:#777">No historical records.</p>';actions.innerHTML='';return;}
+          const v=r.reportedCost-r.theoreticalCost,vp=r.reportedSales?v/r.reportedSales*100:0,pt=r.reportedPct-r.theoreticalPct,c=v>0?'#e74c3c':'#18bc9c',status=v>0?'Unfavourable':(v<0?'Favourable':'On theoretical');actions.innerHTML=`<button class="action-btn" onclick="openMonthlyFoodCostModal('${r.id}')">Edit</button><button class="action-btn" style="background:var(--cancel)" onclick="deleteMonthlyFoodCostRecord('${r.id}')">Delete</button>`;
+          const card=(a,b,style='')=>`<div class="recipe-meta-card"><strong>${a}</strong><span style="font-weight:700;${style}">${b}</span></div>`;summary.innerHTML=`<div class="cogs-summary-grid">${card('Period',escapeHtml(r.start)+' to '+escapeHtml(r.end))}${card('Reported Sales','$'+r.reportedSales.toFixed(2))}${card('Reported Cost','$'+r.reportedCost.toFixed(2))}${card('Reported FC',r.reportedPct.toFixed(2)+'%')}${card('Theoretical Sales','$'+r.theoreticalSales.toFixed(2))}${card('Theoretical Cost','$'+r.theoreticalCost.toFixed(2))}${card('Theoretical FC',r.theoreticalPct.toFixed(2)+'%')}${card('Variance $',(v>=0?'+':'')+'$'+v.toFixed(2),'color:'+c)}${card('Variance %',(vp>=0?'+':'')+vp.toFixed(2)+'%','color:'+c)}${card('FC Points',(pt>=0?'+':'')+pt.toFixed(2)+' pts','color:'+c)}${card('Status',status,'color:'+c)}</div>`;
+          history.innerHTML=`<table><thead><tr><th>Period</th><th>Reported Sales</th><th>Reported Cost</th><th>Reported FC</th><th>Theo Sales</th><th>Theo Cost</th><th>Theo FC</th><th>Variance $</th><th>Variance %</th><th>FC Points</th><th>Status</th><th>Actions</th></tr></thead><tbody>${records.map(x=>{const d=x.reportedCost-x.theoreticalCost,dp=x.reportedSales?d/x.reportedSales*100:0,p=x.reportedPct-x.theoreticalPct,cc=d>0?'#e74c3c':'#18bc9c',st=d>0?'Unfavourable':(d<0?'Favourable':'On theoretical');return `<tr><td>${escapeHtml(x.start)} to ${escapeHtml(x.end)}</td><td>$${x.reportedSales.toFixed(2)}</td><td>$${x.reportedCost.toFixed(2)}</td><td>${x.reportedPct.toFixed(2)}%</td><td>$${x.theoreticalSales.toFixed(2)}</td><td>$${x.theoreticalCost.toFixed(2)}</td><td>${x.theoreticalPct.toFixed(2)}%</td><td style="color:${cc}">${d>=0?'+':''}$${d.toFixed(2)}</td><td>${dp>=0?'+':''}${dp.toFixed(2)}%</td><td>${p>=0?'+':''}${p.toFixed(2)}</td><td style="color:${cc}">${st}</td><td><button class="action-btn" onclick="openMonthlyFoodCostModal('${x.id}')">Edit</button><button class="action-btn" style="background:var(--cancel)" onclick="deleteMonthlyFoodCostRecord('${x.id}')">Delete</button></td></tr>`}).join('')}</tbody></table>`;
         }
 
         function renderPropertyMenus() {
@@ -1402,7 +1413,6 @@ function executeBulkExport() {
 				</td>			    
 				<td></td>
 			</tr>`;
-            renderMonthlyFoodCostSummary();
         }
 
         function renderSelectedPropertyMenuDetails() {
@@ -1438,7 +1448,7 @@ function executeBulkExport() {
                 const recipeOptions = categoryRecipes
                     .map(r => {
                         const alreadyOnMenu = recipesAlreadyOnMenus.has(r.id);
-                        const check = alreadyOnMenu ? '✓ ' : '';
+                        const check = alreadyOnMenu ? 'âœ“ ' : '';
                         const style = alreadyOnMenu ? ' style="color:#18bc9c; font-weight:bold;"' : '';
                         return `<option value="${escapeHtml(r.id)}"${style}>${check}${escapeHtml(r.name || 'Unnamed Recipe')}</option>`;
                     })
@@ -1461,7 +1471,7 @@ function executeBulkExport() {
 
                     return `
                         <tr class="menu-line-row" draggable="${sortMode === 'manual'}" ondragstart="onMenuLineDragStart(event,'${menu.id}','${category.id}','${line.id}')" ondragover="onMenuLineDragOver(event)" ondragleave="onMenuLineDragLeave(event)" ondragend="onMenuLineDragEnd(event)" ondrop="onMenuLineDrop(event,'${menu.id}','${category.id}','${line.id}')">
-                            <td><span title="Drag to reorder" style="display:inline-block; cursor:${sortMode === 'manual' ? 'grab' : 'not-allowed'}; color:#7f8c8d; margin-right:8px; font-weight:bold;">⋮⋮</span><strong>${calc.recipe.name}</strong></td>
+                            <td><span title="Drag to reorder" style="display:inline-block; cursor:${sortMode === 'manual' ? 'grab' : 'not-allowed'}; color:#7f8c8d; margin-right:8px; font-weight:bold;">â‹®â‹®</span><strong>${calc.recipe.name}</strong></td>
                             <td>$${calc.price.toFixed(2)}</td>
                             <td>$${calc.cost.toFixed(2)}</td>
                             <td><input class="sold-input" type="number" step="1" min="0" value="${calc.soldQty}" onchange="updateLineSoldQty('${menu.id}','${category.id}','${line.id}', this.value)"></td>
@@ -1480,7 +1490,7 @@ function executeBulkExport() {
                 html += `
                     <div class="form-section">
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; cursor:pointer;" onclick="toggleMenuCategoryCollapse('${menu.id}','${category.id}')">
-                            <h3 style="margin:0;"><span style="display:inline-block; width:16px;">${isCollapsed ? '▶' : '▼'}</span> ${escapeHtml(category.name)}</h3>
+                            <h3 style="margin:0;"><span style="display:inline-block; width:16px;">${isCollapsed ? 'â–¶' : 'â–¼'}</span> ${escapeHtml(category.name)}</h3>
                             <div style="display:flex; gap:14px; align-items:center; flex-wrap:wrap; justify-content:flex-end; font-size:0.85rem; color:#555;">
                                 <span>Sales: <strong>$${totals.sales.toFixed(2)}</strong></span>
                                 <span>Cost: <strong>$${totals.cost.toFixed(2)}</strong></span>
@@ -1604,7 +1614,7 @@ function executeBulkExport() {
         function deleteMenuItemCategory(cat) {
             const inUse = menuDatabase.filter(m => m.category === cat);
             if (inUse.length > 0) {
-                alert(`Cannot delete "${cat}" — it is used by ${inUse.length} menu item(s). Reassign them first.`);
+                alert(`Cannot delete "${cat}" â€” it is used by ${inUse.length} menu item(s). Reassign them first.`);
                 return;
             }
             if (!confirm(`Delete category "${cat}"?`)) return;
@@ -2007,8 +2017,8 @@ ${propertyDatabase.join('\n')}`,current);
         function deletePackType(pt) {
             const inUse = itemDatabase.filter(item => item.packType === pt);
             if (inUse.length > 0) {
-                const names = inUse.map(i => `• ${i.name}`).join('\n');
-                alert(`❌ Cannot delete "${pt}" — it is currently used by the following items:\n\n${names}\n\nChange those items to a different pack type first.`);
+                const names = inUse.map(i => `â€¢ ${i.name}`).join('\n');
+                alert(`âŒ Cannot delete "${pt}" â€” it is currently used by the following items:\n\n${names}\n\nChange those items to a different pack type first.`);
                 return;
             }
             if (confirm(`Are you sure you want to delete the pack type '${pt}'?`)) {
@@ -2095,8 +2105,8 @@ ${propertyDatabase.join('\n')}`,current);
             if (ud === 'Unit') return;
             const inUse = itemDatabase.filter(item => item.unitDescriptor === ud);
             if (inUse.length > 0) {
-                const names = inUse.map(i => `• ${i.name}`).join('\n');
-                alert(`❌ Cannot delete "${ud}" — it is currently used by the following items:\n\n${names}\n\nChange those items to a different unit descriptor first.`);
+                const names = inUse.map(i => `â€¢ ${i.name}`).join('\n');
+                alert(`âŒ Cannot delete "${ud}" â€” it is currently used by the following items:\n\n${names}\n\nChange those items to a different unit descriptor first.`);
                 return;
             }
             if (confirm(`Are you sure you want to delete the unit descriptor '${ud}'?`)) {
@@ -2127,11 +2137,7 @@ ${propertyDatabase.join('\n')}`,current);
         // --- CUSTOM RECIPE UNITS (GLOBAL) ---
         function customUnitByValue(value){ return customRecipeUnitDatabase.find(u=>u.id===value||u.singular===value); }
         function customUnitLabel(value,qty=1){ const u=customUnitByValue(value); return u ? (Math.abs(parseFloat(qty)||0)===1?u.singular:u.plural) : (UNIT_LABELS[value]||value); }
-        function unitDisplayLabel(value,qty=1,{compact=false}={}){
-            const custom=customUnitByValue(value); if(custom)return Math.abs(parseFloat(qty)||0)===1?custom.singular:custom.plural;
-            const short={L:'L',ML:'mL',FL_OZ:'fl oz',Cups:'cups',Tbsp:'tbsp',Tsp:'tsp',KG:'kg',G:'g',LBS:'lb',OZ:'oz',Each:'each',Portion:'portion'};
-            return compact?(short[value]||value):(UNIT_LABELS[value]||value);
-        }
+        function unitDisplayLabel(value,qty=1,{compact=false}={}){const u=customUnitByValue(value);if(u)return Math.abs(parseFloat(qty)||0)===1?u.singular:u.plural;const short={L:'L',ML:'mL',FL_OZ:'fl oz',Cups:'cups',Tbsp:'tbsp',Tsp:'tsp',KG:'kg',G:'g',LBS:'lb',OZ:'oz',Each:'each',Portion:'portion'};return compact?(short[value]||value):(UNIT_LABELS[value]||value);}
         function ingredientUnitLabel(ing){return unitDisplayLabel(ing?.unit,ing?.qty);}
         function renderCustomRecipeUnitTable(){
             const body=document.getElementById('customRecipeUnitTableBody'); if(!body)return;
@@ -2308,11 +2314,11 @@ Recipe lines: ${usage.recipeLines.slice(0,12).join(', ')||'None'}`);return;}if(!
 function alphaSortByName(a,b){return String(a?.name||'').localeCompare(String(b?.name||''),undefined,{sensitivity:'base'})}
 function toggleChecklistCategory(header){header?.parentElement?.classList.toggle('collapsed')}
 function toggleChecklistCategorySelection(event,checkbox,itemClass){event.stopPropagation();checkbox.closest('.checklist-category')?.querySelectorAll('.'+itemClass).forEach(box=>box.checked=checkbox.checked)}
-function buildCategorizedChecklist(records,{itemClass,type='',categoryLabel='Uncategorized'}){const groups=new Map();records.slice().sort(alphaSortByName).forEach(r=>{const c=String(r.category||categoryLabel);if(!groups.has(c))groups.set(c,[]);groups.get(c).push(r)});return[...groups.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([c,items])=>`<div class="checklist-category"><div class="checklist-category-header" onclick="toggleChecklistCategory(this)"><span class="category-caret">▼</span><input type="checkbox" onclick="toggleChecklistCategorySelection(event,this,'${itemClass}')"><span>${escapeHtml(c)} (${items.length})</span></div><div class="checklist-category-items">${items.map(x=>`<label><input type="checkbox" class="${itemClass}" value="${escapeHtml(x.id)}"${type?` data-type="${type}"`:''}> ${escapeHtml(x.name||'Unnamed Recipe')}</label>`).join('')}</div></div>`).join('')}
+function buildCategorizedChecklist(records,{itemClass,type='',categoryLabel='Uncategorized'}){const groups=new Map();records.slice().sort(alphaSortByName).forEach(r=>{const c=String(r.category||categoryLabel);if(!groups.has(c))groups.set(c,[]);groups.get(c).push(r)});return[...groups.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([c,items])=>`<div class="checklist-category"><div class="checklist-category-header" onclick="toggleChecklistCategory(this)"><span class="category-caret">â–¼</span><input type="checkbox" onclick="toggleChecklistCategorySelection(event,this,'${itemClass}')"><span>${escapeHtml(c)} (${items.length})</span></div><div class="checklist-category-items">${items.map(x=>`<label><input type="checkbox" class="${itemClass}" value="${escapeHtml(x.id)}"${type?` data-type="${type}"`:''}> ${escapeHtml(x.name||'Unnamed Recipe')}</label>`).join('')}</div></div>`).join('')}
 const QUICK_CONVERSION_UNITS={volume:{L:'L',ML:'mL',FL_OZ:'fl oz',Cups:'cups',Tbsp:'tbsp',Tsp:'tsp'},weight:{KG:'kg',G:'g',LBS:'lb',OZ:'oz'}};
 function initQuickConverter(){const f=document.getElementById('quickConvertFrom');if(!f)return;f.innerHTML='<optgroup label="Volume">'+Object.entries(QUICK_CONVERSION_UNITS.volume).map(([v,t])=>`<option value="${v}">${t}</option>`).join('')+'</optgroup><optgroup label="Weight">'+Object.entries(QUICK_CONVERSION_UNITS.weight).map(([v,t])=>`<option value="${v}">${t}</option>`).join('')+'</optgroup>';f.value='L';syncQuickConversionUnits()}
 function syncQuickConversionUnits(){const f=document.getElementById('quickConvertFrom'),t=document.getElementById('quickConvertTo');if(!f||!t)return;const fam=QUICK_CONVERSION_UNITS.volume[f.value]?'volume':'weight';t.innerHTML=Object.entries(QUICK_CONVERSION_UNITS[fam]).map(([v,x])=>`<option value="${v}">${x}</option>`).join('');t.value=fam==='volume'?'ML':'G'}
-function runQuickConversion(){const q=parseFloat(document.getElementById('quickConvertQty')?.value),f=document.getElementById('quickConvertFrom')?.value,t=document.getElementById('quickConvertTo')?.value,o=document.getElementById('quickConvertOutput');if(!o)return;if(!Number.isFinite(q)){o.textContent='—';return}const r=convertQtyUnits(q,f,t);o.textContent=`${Number(r.toFixed(4)).toLocaleString()} ${UNIT_LABELS[t]||t}`}
+function runQuickConversion(){const q=parseFloat(document.getElementById('quickConvertQty')?.value),f=document.getElementById('quickConvertFrom')?.value,t=document.getElementById('quickConvertTo')?.value,o=document.getElementById('quickConvertOutput');if(!o)return;if(!Number.isFinite(q)){o.textContent='â€”';return}const r=convertQtyUnits(q,f,t);o.textContent=`${Number(r.toFixed(4)).toLocaleString()} ${UNIT_LABELS[t]||t}`}
 function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.contains('sidebar-collapsed')||!menu?.classList.contains('show')){if(menu)menu.style.top='';return}const r=trigger.getBoundingClientRect();menu.style.top=Math.max(4,Math.min(r.top,window.innerHeight-menu.scrollHeight-8))+'px';menu.style.maxHeight=(window.innerHeight-12)+'px';menu.style.overflowY='auto'}
 
         // --- SELECTIVE CLONE LOGIC ---
@@ -2326,6 +2332,7 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
         // --- GLOBAL SELECTOR ---
                 document.getElementById('globalPropertySelector').addEventListener('change', function(e) {
             currentProperty = e.target.value;
+            selectedCogsPeriodId='';
             updateUIPropertyNames();
             updateMenuCategoryFilterOptions();
             updateItemCategoryFilterDropdown();
@@ -2357,8 +2364,8 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
         const UI_LAYOUT_STORAGE_KEY = 'fb_recipe_cogs_manager_ui_layout';
         const TAB_TITLES = {'cogs-dashboard':'COGS Dashboard','menu-builder':'Menus',items:'Item Master',prep:'Prep Recipes','menu-items':'Menu Item Recipes',hotels:'Property Management',variance:'Inventory Variance'};
         function updatePageContext(tabName){const el=document.getElementById('pageContextTitle');if(el)el.textContent=TAB_TITLES[tabName]||'F&B Manager';}
-        function toggleSidebarCollapse(forceState=null){const collapsed=forceState===null?!document.body.classList.contains('sidebar-collapsed'):!!forceState;document.body.classList.toggle('sidebar-collapsed',collapsed);const btn=document.getElementById('sidebarCollapseBtn');if(btn){btn.textContent=collapsed?'▶':'◀';btn.title=collapsed?'Expand navigation':'Collapse navigation';}try{localStorage.setItem(UI_LAYOUT_STORAGE_KEY,JSON.stringify({collapsed}));}catch(err){}}
-        function restoreLayoutPreference(){let collapsed=false;try{collapsed=!!JSON.parse(localStorage.getItem(UI_LAYOUT_STORAGE_KEY)||'{}').collapsed;}catch(err){}toggleSidebarCollapse(collapsed);updatePageContext(document.querySelector('.tab-content.active')?.id||'cogs-dashboard');}
+        function toggleSidebarCollapse(forceState=null){const collapsed=forceState===null?!document.body.classList.contains('sidebar-collapsed'):!!forceState;document.body.classList.toggle('sidebar-collapsed',collapsed);const btn=document.getElementById('sidebarCollapseBtn');if(btn){btn.textContent=collapsed?'â–¶':'â—€';btn.title=collapsed?'Expand navigation':'Collapse navigation';}try{localStorage.setItem(UI_LAYOUT_STORAGE_KEY,JSON.stringify({collapsed}));}catch(err){}}
+        function restoreLayoutPreference(){let collapsed=false;try{collapsed=!!JSON.parse(localStorage.getItem(UI_LAYOUT_STORAGE_KEY)||'{}').collapsed;}catch(err){}toggleSidebarCollapse(collapsed);updatePageContext(document.querySelector('.tab-content.active')?.id||'menu-builder');}
         function toggleWorkflowPanel(panelId,button){const panel=document.getElementById(panelId);if(!panel)return;const open=panel.classList.toggle('show');if(button)button.classList.toggle('open',open);}
         // --- Navigation Logic ---
         function openTab(evt, tabName) {
@@ -2805,7 +2812,7 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
                 if (!yieldAmount) return;
                 const batchMultiplier = totalPrepQtyNeeded / yieldAmount;
 
-                const nextPath = pathLabel ? `${pathLabel} → ${prep.name}` : prep.name;
+                const nextPath = pathLabel ? `${pathLabel} â†’ ${prep.name}` : prep.name;
                 prep.ingredients.forEach(subIng => {
                     traceItemUsageInIngredient(subIng, targetItemId, batchMultiplier, nextPath, results, nextSeen);
                 });
@@ -2818,7 +2825,7 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
             (ingredients || []).forEach(ing => {
                 if (!ing) return;
                 if (ing.type === 'raw' && ing.itemId === targetItemId) {
-                    matches.push({ path: path.length ? path.join(' → ') : 'Direct ingredient', qty: ing.qty, unit: ing.unit });
+                    matches.push({ path: path.length ? path.join(' â†’ ') : 'Direct ingredient', qty: ing.qty, unit: ing.unit });
                     return;
                 }
                 if (ing.type !== 'prep' || seenPrepIds.has(ing.itemId)) return;
@@ -2860,8 +2867,8 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
             } else {
                 const propertyCount = new Set(rows.map(r => r.property)).size;
                 const recipeCount = new Set(rows.map(r => `${r.recipeType}:${r.recipeId}`)).size;
-                const tableRows = rows.map(r => `<tr><td><strong>${escapeHtml(r.property)}</strong></td><td>${escapeHtml(r.recipeType)}</td><td><strong>${escapeHtml(r.recipeName)}</strong></td><td>${r.path === 'Direct ingredient' ? 'Direct ingredient' : `Via ${escapeHtml(r.path)}`}</td><td>${escapeHtml(r.qty)} ${escapeHtml(unitDisplayLabel(r.unit,r.qty))}</td></tr>`).join('');
-                body.innerHTML = `<p style="color:#666;margin-top:-5px;">Includes direct use and menu items that depend on this item through a Prep Recipe.</p><div class="recipe-meta-grid"><div class="recipe-meta-card"><strong>Properties</strong>${propertyCount}</div><div class="recipe-meta-card"><strong>Recipes Affected</strong>${recipeCount}</div><div class="recipe-meta-card"><strong>Usage Lines</strong>${rows.length}</div><div class="recipe-meta-card"><strong>Current Recipe Unit</strong>${escapeHtml(item.recipeMeasure || '—')}</div></div><table><thead><tr><th>Property</th><th>Recipe Type</th><th>Recipe</th><th>Used</th><th>Qty / Unit</th></tr></thead><tbody>${tableRows}</tbody></table>`;
+                const tableRows = rows.map(r => `<tr><td><strong>${escapeHtml(r.property)}</strong></td><td>${escapeHtml(r.recipeType)}</td><td><strong>${escapeHtml(r.recipeName)}</strong></td><td>${r.path === 'Direct ingredient' ? 'Direct ingredient' : `Via ${escapeHtml(r.path)}`}</td><td>${escapeHtml(r.qty)} ${escapeHtml(r.unit)}</td></tr>`).join('');
+                body.innerHTML = `<p style="color:#666;margin-top:-5px;">Includes direct use and menu items that depend on this item through a Prep Recipe.</p><div class="recipe-meta-grid"><div class="recipe-meta-card"><strong>Properties</strong>${propertyCount}</div><div class="recipe-meta-card"><strong>Recipes Affected</strong>${recipeCount}</div><div class="recipe-meta-card"><strong>Usage Lines</strong>${rows.length}</div><div class="recipe-meta-card"><strong>Current Recipe Unit</strong>${escapeHtml(item.recipeMeasure || 'â€”')}</div></div><table><thead><tr><th>Property</th><th>Recipe Type</th><th>Recipe</th><th>Used</th><th>Qty / Unit</th></tr></thead><tbody>${tableRows}</tbody></table>`;
             }
             document.getElementById('itemDrilldownModal').style.display = 'block';
         }
@@ -2907,7 +2914,7 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
             const rows = computeItemUsageBreakdown(itemId, currentProperty);
             const title = document.getElementById('itemDrilldownTitle');
             const body = document.getElementById('itemDrilldownBody');
-            if (title) title.textContent = `Where "${item.name}" Is Used — ${currentProperty}`;
+            if (title) title.textContent = `Where "${item.name}" Is Used â€” ${currentProperty}`;
 
             const totalTheoretical = rows.reduce((sum, r) => sum + r.totalTheoreticalQty, 0);
 
@@ -2919,8 +2926,8 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
 				  const isViaPrep = r.path && r.path !== 'Direct ingredient';
 				  const qtyCell = isViaPrep
 					? `${effectiveQty.toFixed(2)} ${escapeHtml(item.recipeMeasure)}
-					   <br><span style="font-size:0.7rem;color:#aaa">(recipe batch calls for ${r.qtyPerUnit} ${escapeHtml(unitDisplayLabel(r.unit,r.qtyPerUnit))})</span>`
-					: `${r.qtyPerUnit} ${escapeHtml(unitDisplayLabel(r.unit,r.qtyPerUnit))}`;
+					   <br><span style="font-size:0.7rem;color:#aaa">(recipe batch calls for ${r.qtyPerUnit} ${escapeHtml(r.unit)})</span>`
+					: `${r.qtyPerUnit} ${escapeHtml(r.unit)}`;
 				  return `
 					<tr>
 					  <td><strong>${escapeHtml(r.menuItemName)}</strong><br>
@@ -2934,7 +2941,7 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
 				}).join('');
 
                 body.innerHTML = `
-                    <p style="color:#7f8c8d;font-size:0.85rem;margin-top:-5px;">Theoretical usage is driven by Sold Qty on your Menu Builder. Items used only inside a Prep Recipe show the full path (e.g., Prep Name → Menu Item).</p>
+                    <p style="color:#7f8c8d;font-size:0.85rem;margin-top:-5px;">Theoretical usage is driven by Sold Qty on your Menu Builder. Items used only inside a Prep Recipe show the full path (e.g., Prep Name â†’ Menu Item).</p>
                     <table>
                         <thead>
                             <tr>
@@ -2949,7 +2956,7 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
                         <tfoot>
                             <tr style="background-color:#e9ecef;font-weight:bold;">
                                 <td colspan="4" style="text-align:right;">Total Theoretical Usage</td>
-                                <td style="color:var(--primary);">${totalTheoretical.toFixed(2)} ${escapeHtml(unitDisplayLabel(item.recipeMeasure,totalTheoretical,{compact:true}))}</td>
+                                <td style="color:var(--primary);">${totalTheoretical.toFixed(2)} ${escapeHtml(item.recipeMeasure)}</td>
                             </tr>
                         </tfoot>
                     </table>`;
@@ -2961,7 +2968,7 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
         function formatQtyNumber(value){ return Number(value||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
         function varianceQuantityDisplay(item,qty,{showPlus=false,html=true}={}){
             if(qty===null||qty===undefined||!Number.isFinite(Number(qty)))return '\u2014';
-            const n=Number(qty), sign=n<0?'−':(showPlus&&n>0?'+':''), abs=Math.abs(n);
+            const n=Number(qty), sign=n<0?'âˆ’':(showPlus&&n>0?'+':''), abs=Math.abs(n);
             const perCase=Math.abs(convertPurchaseToRecipeUnits(item,1,0));
             const perInner=Math.abs(convertPurchaseToRecipeUnits(item,0,1));
             let remaining=abs, cases=0, inners=0;
@@ -3049,17 +3056,17 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
                 tr.innerHTML = `
                     <td><strong style="cursor:pointer;color:#2980b9;text-decoration:underline;" onclick="openItemDrilldown('${r.item.id}')" title="Click to see which recipes use this item">${escapeHtml(r.item.name)}</strong><br><span style="font-size:0.75rem;color:#7f8c8d;">${escapeHtml(r.item.packType || '')} ${r.item.units || ''} ${escapeHtml(descriptor)}${(parseFloat(r.item.units) === 1) ? '' : 's'} x ${r.item.unitSize || ''} ${escapeHtml(r.item.unitMeasure || '')}</span></td>
                     <td>${varianceQuantityDisplay(r.item,r.theoreticalQty)}</td>
-                    <td class="variance-count-cell">
-                        <input type="number" step="0.01" placeholder="Case" value="${entry.opening.cases || ''}" oninput="updateInventoryField('${r.item.id}','opening','cases',this.value)">
-                        <input type="number" step="0.01" placeholder="${escapeHtml(packPlaceholder)}" title="${escapeHtml(descriptor)}s per case" value="${entry.opening.packQty || ''}" oninput="updateInventoryField('${r.item.id}','opening','packQty',this.value)">
+                    <td style="white-space:nowrap;">
+                        <input type="number" step="0.01" placeholder="Cases" value="${entry.opening.cases || ''}" style="width:65px" oninput="updateInventoryField('${r.item.id}','opening','cases',this.value)">
+                        <input type="number" step="0.01" placeholder="${escapeHtml(packPlaceholder)}" title="${escapeHtml(descriptor)}s per case" value="${entry.opening.packQty || ''}" style="width:70px" oninput="updateInventoryField('${r.item.id}','opening','packQty',this.value)">
                     </td>
-                    <td class="variance-count-cell">
-                        <input type="number" step="0.01" placeholder="Case" value="${p0.cases || ''}" oninput="updatePurchaseField('${r.item.id}',0,'cases',this.value)">
-                        <input type="number" step="0.01" placeholder="${escapeHtml(packPlaceholder)}" title="${escapeHtml(descriptor)}s per case" value="${p0.packQty || ''}" oninput="updatePurchaseField('${r.item.id}',0,'packQty',this.value)">
+                    <td style="white-space:nowrap;">
+                        <input type="number" step="0.01" placeholder="Cases" value="${p0.cases || ''}" style="width:65px" oninput="updatePurchaseField('${r.item.id}',0,'cases',this.value)">
+                        <input type="number" step="0.01" placeholder="${escapeHtml(packPlaceholder)}" title="${escapeHtml(descriptor)}s per case" value="${p0.packQty || ''}" style="width:70px" oninput="updatePurchaseField('${r.item.id}',0,'packQty',this.value)">
                     </td>
-                    <td class="variance-count-cell">
-                        <input type="number" step="0.01" placeholder="Case" value="${entry.closing.cases || ''}" oninput="updateInventoryField('${r.item.id}','closing','cases',this.value)">
-                        <input type="number" step="0.01" placeholder="${escapeHtml(packPlaceholder)}" title="${escapeHtml(descriptor)}s per case" value="${entry.closing.packQty || ''}" oninput="updateInventoryField('${r.item.id}','closing','packQty',this.value)">
+                    <td style="white-space:nowrap;">
+                        <input type="number" step="0.01" placeholder="Cases" value="${entry.closing.cases || ''}" style="width:65px" oninput="updateInventoryField('${r.item.id}','closing','cases',this.value)">
+                        <input type="number" step="0.01" placeholder="${escapeHtml(packPlaceholder)}" title="${escapeHtml(descriptor)}s per case" value="${entry.closing.packQty || ''}" style="width:70px" oninput="updateInventoryField('${r.item.id}','closing','packQty',this.value)">
                     </td>
                     <td>${actualQtyDisplay}</td>
                     <td style="font-weight:bold;color:${varianceColor}">${varianceQtyDisplay}</td>
@@ -3305,7 +3312,7 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
                     itemScopesOverlap(item, itemDatabase.find(i => i.id === id) || { scope: getCategorySetting(document.getElementById('itemCategory').value).defaultScope === 'property' ? 'property' : 'global', property: currentProperty })
                 );
                 if (skuConflict) {
-                    alert(`⚠️ SKU "${enteredSku}" is already assigned to "${skuConflict.name}". Please use a unique SKU or leave the field blank.`);
+                    alert(`âš ï¸ SKU "${enteredSku}" is already assigned to "${skuConflict.name}". Please use a unique SKU or leave the field blank.`);
                     return;
                 }
             }
@@ -3466,10 +3473,10 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
                         m.ingredients && m.ingredients.some(ing => ing.itemId === item.id)
                     );
                     if (usedInPrep.length > 0 || usedInMenu.length > 0) {
-                        const prepNames = usedInPrep.map(p => `• ${p.name} (${p.property})`).join('\n');
-                        const menuNames = usedInMenu.map(m => `• ${m.name} (${m.property})`).join('\n');
+                        const prepNames = usedInPrep.map(p => `â€¢ ${p.name} (${p.property})`).join('\n');
+                        const menuNames = usedInMenu.map(m => `â€¢ ${m.name} (${m.property})`).join('\n');
                         const allNames = [prepNames, menuNames].filter(Boolean).join('\n');
-                        alert(`❌ Cannot set "${item.name}" to Inactive — it is currently used in the following recipes:\n\n${allNames}\n\nRemove this item from all recipes first, then set it to Inactive.`);
+                        alert(`âŒ Cannot set "${item.name}" to Inactive â€” it is currently used in the following recipes:\n\n${allNames}\n\nRemove this item from all recipes first, then set it to Inactive.`);
                         this.value = originalStatus;
                     }
                 }
@@ -3900,14 +3907,14 @@ function renderPriceUpdateReviewModal() {
             <div class="recipe-meta-card"><strong>Duplicate Match Issues</strong>${summary.duplicateItemMatchCount || 0}</div>
         </div>
 
-        ${highSwingCount ? `<p style="color:#e74c3c; font-weight:bold; margin-bottom:0;">⚠️ Items over ${PRICE_SWING_WARNING_PCT}% are highlighted. Review them carefully, adjust the new price if needed, or uncheck them to ignore this time.</p>` : ''}
+        ${highSwingCount ? `<p style="color:#e74c3c; font-weight:bold; margin-bottom:0;">âš ï¸ Items over ${PRICE_SWING_WARNING_PCT}% are highlighted. Review them carefully, adjust the new price if needed, or uncheck them to ignore this time.</p>` : ''}
     `;
 
     const tbody = document.getElementById('priceUpdateReviewBody');
 
     tbody.innerHTML = pendingPriceUpdates.map((u, index) => {
         const rowColor = u.isLargeSwing ? '#fff3cd' : '#ffffff';
-        const flagText = u.isLargeSwing ? '⚠️ >10%' : 'OK';
+        const flagText = u.isLargeSwing ? 'âš ï¸ >10%' : 'OK';
         const flagColor = u.isLargeSwing ? '#e74c3c' : '#18bc9c';
         const changeColor = u.changeAmount >= 0 ? '#e74c3c' : '#18bc9c';
 
@@ -4245,7 +4252,7 @@ function downloadPriceUpdateReviewCsv() {
                     item.id !== id && itemScopesOverlap(item, itemDatabase.find(i => i.id === id) || {})
                 );
                 if (skuConflict) {
-                    alert(`⚠️ SKU "${enteredSku}" is already assigned to "${skuConflict.name}". Please use a unique SKU or leave the field blank.`);
+                    alert(`âš ï¸ SKU "${enteredSku}" is already assigned to "${skuConflict.name}". Please use a unique SKU or leave the field blank.`);
                     return;
                 }
             }
@@ -4343,10 +4350,10 @@ function downloadPriceUpdateReviewCsv() {
             );
 
             if (usedInPrep.length > 0 || usedInMenu.length > 0) {
-                const prepNames = usedInPrep.map(p => `• ${p.name} (${p.property})`).join('\n');
-                const menuNames = usedInMenu.map(m => `• ${m.name} (${m.property})`).join('\n');
+                const prepNames = usedInPrep.map(p => `â€¢ ${p.name} (${p.property})`).join('\n');
+                const menuNames = usedInMenu.map(m => `â€¢ ${m.name} (${m.property})`).join('\n');
                 const allNames = [prepNames, menuNames].filter(Boolean).join('\n');
-                alert(`❌ Cannot delete "${item.name}" — it is currently used in the following recipes:\n\n${allNames}\n\nRemove this item from all recipes before deleting.`);
+                alert(`âŒ Cannot delete "${item.name}" â€” it is currently used in the following recipes:\n\n${allNames}\n\nRemove this item from all recipes before deleting.`);
                 return;
             }
 
@@ -4466,7 +4473,7 @@ function downloadPriceUpdateReviewCsv() {
                 const costVal = calculateUnitCost(item);
                 const costPerRecipeUnit = costVal !== null ? `$${costVal.toFixed(4)}` : "Pending Conv.";
                 const supplierDisplay = item.supplier && item.supplier.trim() ? item.supplier : 'Unassigned';
-                const skuDisplay = item.sku && item.sku.trim() ? item.sku : '—';
+                const skuDisplay = item.sku && item.sku.trim() ? item.sku : 'â€”';
                 const statusDisplay = item.status || 'active';
 
                 const row = document.createElement('tr');
@@ -4474,7 +4481,7 @@ function downloadPriceUpdateReviewCsv() {
                     <td><strong class="item-usage-link" onclick="openItemRecipeUsage('${item.id}')" title="Click to see every recipe and property where this item is used">${escapeHtml(item.name)}</strong> <span style="font-size:.68rem;color:${item.scope==='property'?'#8e44ad':'#18bc9c'};font-weight:bold">[${item.scope==='property'?escapeHtml(item.property):'Global'}]</span>${item.excludeFromVariance ? ' <span style="font-size:0.7rem;color:#e74c3c;">(no variance)</span>' : ''}</td>
                     <td>${skuDisplay}</td>
                     <td>${supplierDisplay}</td>
-                    <td>${item.category || '—'}</td>
+                    <td>${item.category || 'â€”'}</td>
                     <td>${statusDisplay}</td>
                     <td>${item.packType} (${item.units} x ${item.unitSize} ${item.unitMeasure})</td>
                     <td>${item.totalYield} ${item.unitMeasure} <span style="color:${(item.yieldPct||100)<100?'#e74c3c':'#888'}; font-size:0.8rem;">(${item.yieldPct||100}%)</span></td>
@@ -4597,7 +4604,7 @@ function downloadPriceUpdateReviewCsv() {
 
             filteredData.forEach(prep => {
                 const shelfLifeDisplay = prep.shelfLife ? `${prep.shelfLife} Days` : 'N/A';
-                const usageUnitLabel = unitDisplayMap[prep.usageUnit] || prep.usageUnit || '—';
+                const usageUnitLabel = unitDisplayMap[prep.usageUnit] || prep.usageUnit || 'â€”';
                 const row = document.createElement('tr');
                 row.className = 'recipe-row-clickable';
                 row.onclick = function(e) {
@@ -4610,7 +4617,7 @@ function downloadPriceUpdateReviewCsv() {
                     <td>${shelfLifeDisplay}</td>
                     <td style="color: #18bc9c; font-weight: bold;">$${calculatePrepCostPerUnit(prep).toFixed(4)} / ${prep.yieldUnit === 'Each' ? 'Portion' : prep.yieldUnit}</td>
                     <td>
-                        <button class="action-btn" onclick="printSinglePrepRecipe('${prep.id}')">🖨 Print</button>
+                        <button class="action-btn" onclick="printSinglePrepRecipe('${prep.id}')">ðŸ–¨ Print</button>
                         <button class="action-btn" onclick="editPrep('${prep.id}')">Edit</button>
                         <button class="action-btn" style="background-color:var(--info)" onclick="openSingleDuplicateModal('${prep.id}', 'prep')">Copy</button>
                         <button class="action-btn" style="background-color:var(--cancel)" onclick="deletePrep('${prep.id}')">Delete</button>
@@ -4660,12 +4667,12 @@ function downloadPriceUpdateReviewCsv() {
             const linkedMenuItems = [];
             menuDatabase.forEach(m => {
                 if (m.ingredients && m.ingredients.some(ing => ing.itemId === id)) {
-                    linkedMenuItems.push(`• ${m.name} (${m.property})`);
+                    linkedMenuItems.push(`â€¢ ${m.name} (${m.property})`);
                 }
             });
 
             if (linkedMenuItems.length > 0) {
-                alert(`❌ Cannot delete "${prep.name}" — it is currently used as an ingredient in the following menu item recipes:\n\n${linkedMenuItems.join('\n')}\n\nRemove it from those recipes first, then delete.`);
+                alert(`âŒ Cannot delete "${prep.name}" â€” it is currently used as an ingredient in the following menu item recipes:\n\n${linkedMenuItems.join('\n')}\n\nRemove it from those recipes first, then delete.`);
                 return;
             }
 
@@ -4786,7 +4793,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                     <td>
                         <button class="action-btn" onclick="editMenu('${menu.id}')">Edit</button>
                         <button class="action-btn" style="background-color: var(--info);" onclick="openSingleDuplicateModal('${menu.id}', 'menu')">Copy</button>
-                        <button class="action-btn" style="background-color: #27ae60;" onclick="exportSingleMenuItemPptx('${menu.id}')">🖨 PPTX</button>
+                        <button class="action-btn" style="background-color: #27ae60;" onclick="exportSingleMenuItemPptx('${menu.id}')">ðŸ–¨ PPTX</button>
                         <button class="action-btn" style="background-color: var(--cancel);" onclick="deleteMenuItem('${menu.id}')">Delete</button>
                     </td>`;
                 tbody.appendChild(row);
@@ -4893,8 +4900,8 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
             paintMeter('editMenuModalTipsFitMeter',meterText(f,'tips'),!f.tips.fits?'fit-over':(f.tips.fontPt<9?'fit-warn':'fit-ok'));
             const sum=document.getElementById('editMenuModalExportFitSummary');
             if(sum){
-                if(f.overflow){sum.className='export-fit-summary fit-over';sum.textContent='⚠ Text Overflow — '+f.overflowBlocks.join(' and ')+'. The recipe can be saved, but bulk export will skip it until adjusted.';}
-                else if(f.pages>=4){sum.className='export-fit-summary fit-warn';sum.textContent='4-page layout — Review recommended. This recipe fits but has reached the maximum recommended length.';}
+                if(f.overflow){sum.className='export-fit-summary fit-over';sum.textContent='âš  Text Overflow â€” '+f.overflowBlocks.join(' and ')+'. The recipe can be saved, but bulk export will skip it until adjusted.';}
+                else if(f.pages>=4){sum.className='export-fit-summary fit-warn';sum.textContent='4-page layout â€” Review recommended. This recipe fits but has reached the maximum recommended length.';}
                 else{sum.className='export-fit-summary';sum.textContent='';}
             }
         }
@@ -5022,7 +5029,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
 		        if (line.recipeId === id) linkedMenus.push(`${pm.name} > ${cat.name} (${pm.property})`);
 		    })));
 		    if (linkedMenus.length > 0) {
-		        alert(`Cannot delete "${menu.name}" — it is currently listed in the following menus:\n${linkedMenus.join('\n')}\n\nRemove it from those menus first, then delete.`);
+		        alert(`Cannot delete "${menu.name}" â€” it is currently listed in the following menus:\n${linkedMenus.join('\n')}\n\nRemove it from those menus first, then delete.`);
 		        return;
     }
 		    if (!confirm(`Are you sure you want to permanently delete the recipe "${menu.name}"? This cannot be undone.`)) return;
@@ -5133,12 +5140,12 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
 
                                 const activeIngredients = activeModalTarget === 'prep' ? currentPrepIngredients : (activeModalTarget === 'editMenuModal' ? currentEditMenuModalIngredients : currentMenuIngredients);
                                 const alreadyAdded = activeIngredients.some(ing => ing.itemId === data.id || ing.id === data.id);
-                const checkmark = alreadyAdded ? ' <span style="color: #18bc9c; font-weight:bold;" title="Already in this recipe">✔</span>' : '';
+                const checkmark = alreadyAdded ? ' <span style="color: #18bc9c; font-weight:bold;" title="Already in this recipe">âœ”</span>' : '';
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td><strong>${data.name}</strong>${checkmark}</td>
-                    <td>${data.packBreakdown || '—'}</td>
+                    <td>${data.packBreakdown || 'â€”'}</td>
                     <td><span style="background-color:${badgeColor}; color:white; padding:3px 6px; border-radius:4px; font-size:0.8rem;">${data.category}</span></td>
                     <td>${unitSelectHtml}</td>
                     <td id="cost-${data.id}" style="color: #18bc9c; font-weight:bold;">${costDisplay}</td>
@@ -5405,7 +5412,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
             pendingRecipeCopy={original,type,targetProperty,missing,onDone};
             if(!missing.length){completeRecipeCopyMapping();return;}
             document.getElementById('recipeMappingIntro').textContent=`${missing.length} item(s) are not available at ${targetProperty}. Choose replacements or leave them incomplete.`;
-            document.getElementById('recipeMappingRows').innerHTML=missing.map((src,idx)=>{const candidates=visibleItemsForProperty(targetProperty).filter(i=>i.category===src.category).sort((a,b)=>(a.name===src.name?-1:0)-(b.name===src.name?-1:0)||a.name.localeCompare(b.name));return `<div class="form-section"><strong>${escapeHtml(src.name)}</strong> <span style="color:#777">(${escapeHtml(src.category)})</span><select id="recipeMap-${idx}" data-source="${src.id}" style="margin-top:8px"><option value="">Leave incomplete — Missing item: ${escapeHtml(src.name)}</option>${candidates.map(c=>`<option value="${c.id}" ${c.name===src.name?'selected':''}>${escapeHtml(c.name)} — ${escapeHtml(c.scope==='property'?c.property:'Global')}</option>`).join('')}</select></div>`}).join('');
+            document.getElementById('recipeMappingRows').innerHTML=missing.map((src,idx)=>{const candidates=visibleItemsForProperty(targetProperty).filter(i=>i.category===src.category).sort((a,b)=>(a.name===src.name?-1:0)-(b.name===src.name?-1:0)||a.name.localeCompare(b.name));return `<div class="form-section"><strong>${escapeHtml(src.name)}</strong> <span style="color:#777">(${escapeHtml(src.category)})</span><select id="recipeMap-${idx}" data-source="${src.id}" style="margin-top:8px"><option value="">Leave incomplete â€” Missing item: ${escapeHtml(src.name)}</option>${candidates.map(c=>`<option value="${c.id}" ${c.name===src.name?'selected':''}>${escapeHtml(c.name)} â€” ${escapeHtml(c.scope==='property'?c.property:'Global')}</option>`).join('')}</select></div>`}).join('');
             document.getElementById('recipeItemMappingModal').style.display='block';
         }
         function cancelRecipeCopyMapping(){pendingRecipeCopy=null;closeModal('recipeItemMappingModal');}
@@ -5426,7 +5433,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
         }
         function executeSingleDuplicate(){const targetProperty=document.getElementById('duplicateTargetSelector').value;if(targetProperty===currentProperty){alert('Select a different property.');return;}const original=(duplicateTargetType==='prep'?prepDatabase:menuDatabase).find(r=>r.id===duplicateTargetId);closeModal('duplicateModal');if(original)startRecipeCopy(original,duplicateTargetType,targetProperty);}
 
-        // ── UNIT DISPLAY MAP ──────────────────────────────────────
+        // â”€â”€ UNIT DISPLAY MAP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         const unitDisplayMap = {
             FL_OZ: 'fl oz', ML: 'ml', CUP: 'cup', TSP: 'tsp', TBSP: 'tbsp',
             OZ: 'oz', KG: 'kg', LB: 'lb', LBS: 'lbs', G: 'gram', Each: 'Each'
@@ -5469,7 +5476,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
             }
         }
 
-        // ── RICH TEXT EDITOR HELPERS ───────────────────────────────
+        // â”€â”€ RICH TEXT EDITOR HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         function rteCmd(command, targetId) {
             const el = document.getElementById(targetId || 'prepSteps');
             if (el) el.focus();
@@ -5510,7 +5517,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                             const parent = li.parentElement;
                             if (parent && parent.nodeName === 'OL') {
                                 // Check depth: if parent's parent is also a list item
-                                // it means we are nested → convert to UL
+                                // it means we are nested â†’ convert to UL
                                 const grandParent = parent.parentElement;
                                 if (grandParent && grandParent.nodeName === 'LI') {
                                     const ul = document.createElement('ul');
@@ -5530,17 +5537,17 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                     }, 0);
                 }
             } else {
-                // Outside a list – insert 4 non-breaking spaces as indent
+                // Outside a list â€“ insert 4 non-breaking spaces as indent
                 document.execCommand('insertHTML', false, '&nbsp;&nbsp;&nbsp;&nbsp;');
             }
         });
 
-        // ── VIEW PREP RECIPE POPUP ─────────────────────────────────
+        // â”€â”€ VIEW PREP RECIPE POPUP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         function viewPrepRecipe(id) {
             const prep = prepDatabase.find(p => p.id === id);
             if (!prep) return;
 
-            const usageUnitLabel = unitDisplayMap[prep.usageUnit] || prep.usageUnit || '—';
+            const usageUnitLabel = unitDisplayMap[prep.usageUnit] || prep.usageUnit || 'â€”';
             const ingRows = (prep.ingredients || []).map(ing =>
                 `<tr>
                     <td>${ing.name}</td>
@@ -5556,7 +5563,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                     <div class="recipe-meta-card"><strong>Yield</strong>${prep.yieldAmount} ${prep.yieldUnit}</div>
                     <div class="recipe-meta-card"><strong>Shelf Life</strong>${prep.shelfLife ? prep.shelfLife + ' Days' : 'N/A'}</div>
                     <div class="recipe-meta-card"><strong>Recipe Use Unit</strong>${usageUnitLabel}</div>
-                    <div class="recipe-meta-card"><strong>Usage / Application</strong>${prep.usage || '—'}</div>
+                    <div class="recipe-meta-card"><strong>Usage / Application</strong>${prep.usage || 'â€”'}</div>
                     <div class="recipe-meta-card"><strong>Food Cost (batch)</strong>$${calculatePrepTotalCost(prep).toFixed(2)}</div>
                     <div class="recipe-meta-card"><strong>Cost per ${prep.yieldUnit === 'Each' ? 'Portion' : prep.yieldUnit}</strong>$${calculatePrepCostPerUnit(prep).toFixed(4)}</div>
                 </div>
@@ -5571,7 +5578,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
             document.getElementById('viewRecipeModal').style.display = 'block';
         }
 
-// ── VIEW MENU RECIPE POPUP ─────────────────────────────────
+// â”€â”€ VIEW MENU RECIPE POPUP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         function viewMenuRecipe(id) {
             const menu = menuDatabase.find(m => m.id === id);
             if (!menu) return;
@@ -5595,11 +5602,11 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                     <button type="button" class="action-btn" style="background-color:var(--info); padding:6px 12px;" onclick="exportSingleMenuItemCogsPdf('${menu.id}')">Export COGS % PDF</button>
                 </div>
                 <div class="recipe-meta-grid">
-                    <div class="recipe-meta-card"><strong>Category</strong>${menu.category || '—'}</div>
+                    <div class="recipe-meta-card"><strong>Category</strong>${menu.category || 'â€”'}</div>
                     <div class="recipe-meta-card"><strong>Target Price</strong>$${menu.targetPrice.toFixed(2)}</div>
                     <div class="recipe-meta-card"><strong>Food Cost</strong>$${liveFoodCost.toFixed(2)}</div>
                     <div class="recipe-meta-card"><strong>Cost %</strong><span style="color: ${costColor}; font-weight: bold;">${liveCostPercentage.toFixed(1)}%</span></div>
-                    <div class="recipe-meta-card"><strong>Cook Time</strong>${menu.cookTime || '—'}</div>
+                    <div class="recipe-meta-card"><strong>Cook Time</strong>${menu.cookTime || 'â€”'}</div>
                 </div>
                 <h4 style="margin: 0 0 8px 0;">Ingredients</h4>
                 <table style="margin-bottom: 20px;">
@@ -5662,7 +5669,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
 
 
 
-// ─── MENU ITEM COGS % PDF EXPORT ─────────────────────────────────────────────
+// â”€â”€â”€ MENU ITEM COGS % PDF EXPORT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Opens a print-ready PDF page. In the print dialog, choose "Save as PDF".
 function getCogsCostColor(costPct) {
     return costPct > 35 ? '#e74c3c' : (costPct >= 30 ? '#f39c12' : '#18bc9c');
@@ -5695,7 +5702,7 @@ function buildMenuItemCogsPdfHTML(menu) {
     const targetPrice = parseFloat(menu.targetPrice || 0);
     const ingredientRows = getNonCreditIngredients(menu).map(ing => `<tr><td>${escapeHtml(ing.name || '')}</td><td class="num">${escapeHtml(ing.qty ?? '')}</td><td>${escapeHtml(ingredientUnitLabel(ing))}</td><td class="num">$${getLiveIngredientTotalCost(ing).toFixed(2)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted" style="text-align:center;">No ingredients listed.</td></tr>';
     return `<section class="cogs-page"><div class="cogs-title-row"><div><h1>${escapeHtml(menu.name || 'Menu Item')}</h1><div class="property-line">${escapeHtml(currentProperty || '')}</div></div></div>
-        <div class="meta-grid"><div class="meta-card"><strong>Category</strong><span class="value">${escapeHtml(menu.category || '—')}</span></div><div class="meta-card"><strong>Target Price</strong><span class="value">$${targetPrice.toFixed(2)}</span></div><div class="meta-card"><strong>Food Cost</strong><span class="value">$${liveFoodCost.toFixed(2)}</span></div><div class="meta-card"><strong>Cost %</strong><span class="value" style="color:${costColor}; font-weight:800;">${liveCostPercentage.toFixed(1)}%</span></div><div class="meta-card"><strong>Cook Time</strong><span class="value">${escapeHtml(menu.cookTime || '—')}</span></div></div>
+        <div class="meta-grid"><div class="meta-card"><strong>Category</strong><span class="value">${escapeHtml(menu.category || 'â€”')}</span></div><div class="meta-card"><strong>Target Price</strong><span class="value">$${targetPrice.toFixed(2)}</span></div><div class="meta-card"><strong>Food Cost</strong><span class="value">$${liveFoodCost.toFixed(2)}</span></div><div class="meta-card"><strong>Cost %</strong><span class="value" style="color:${costColor}; font-weight:800;">${liveCostPercentage.toFixed(1)}%</span></div><div class="meta-card"><strong>Cook Time</strong><span class="value">${escapeHtml(menu.cookTime || 'â€”')}</span></div></div>
         <h2>Ingredients</h2><table><thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Cost</th></tr></thead><tbody>${ingredientRows}</tbody></table></section>`;
 }
 function generateMenuItemsCogsPdf(items, title = 'Menu Item COGS % Export') {
@@ -5723,7 +5730,7 @@ function openBulkMenuCogsModal(){populateMenuExportCategoryFilter('bulkMenuCogsC
 function toggleBulkMenuCogsSelectAll(cb){document.querySelectorAll('.bulk-menu-cogs-cb').forEach(x=>x.checked=cb.checked)}
 function executeBulkMenuCogsExport(){const ids=[...document.querySelectorAll('.bulk-menu-cogs-cb:checked')].map(x=>x.value);if(!ids.length)return showToast('Please select at least one menu item.','warning');generateMenuItemsCogsPdf(ids.map(getMenuForExport).filter(Boolean).sort(alphaSortByName),`${currentProperty||'Property'} Bulk Menu Item COGS %`);closeModal('bulkMenuCogsModal')}
 
-// ─── MENU ITEM PPTX EXPORT ───────────────────────────────────────────────────
+// â”€â”€â”€ MENU ITEM PPTX EXPORT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function getFilteredMenuItemsForPptx() {
     const filterText = (document.getElementById('searchMenuInput')?.value || '').toLowerCase();
@@ -5800,12 +5807,12 @@ function getPptxPreparationLines(html) {
                 if(li.tagName!=='LI'){walk(li);return;}
                 const clone=li.cloneNode(true);
                 clone.querySelectorAll('ol,ul').forEach(n=>n.remove());
-                push(clone.textContent,tag==='OL'?`${index+1}. `:'• ');
+                push(clone.textContent,tag==='OL'?`${index+1}. `:'â€¢ ');
                 [...li.children].filter(child=>child.tagName==='OL'||child.tagName==='UL').forEach(child=>walk(child,tag));
             });
             return;
         }
-        if(tag==='LI'){push(node.textContent,listContext==='UL'?'• ':'');return;}
+        if(tag==='LI'){push(node.textContent,listContext==='UL'?'â€¢ ':'');return;}
         if(['P','DIV'].includes(tag)){
             const containsBlocks=node.querySelector(':scope > ol, :scope > ul, :scope > p, :scope > div');
             if(containsBlocks){[...node.childNodes].forEach(child=>walk(child));}
@@ -5856,10 +5863,10 @@ function generateMenuItemPptx(items) {
                 slide.addShape(pptx.ShapeType.rect,{x:.3,y:.85,w:3.2,h:3.65,fill:{color:'F7F7F7',transparency:10},line:{color:'999999',width:1,dash:'dash'}});
             }
             const left=first?3.7:.4, ingW=first?2.081:3.0, prepX=first?5.971:3.7, prepW=first?3.629:5.9;
-            slide.addText(first?'INGREDIENTS':'INGREDIENTS — CONTINUED',{x:left,y:first?.60:.9,w:ingW,h:first?.328:.3,fontSize:11,bold:true,fontFace:'Century Gothic',charSpacing:2,margin:0});
-            const ingText=(ingChunks[i]||[]).map(ing=>({text:`${ing.qty||''} ${ing.unit||''} — ${ing.name||''}`.trim(),options:{fontSize:(fit.ingredients?.fontPt||9),fontFace:'Century Gothic',breakLine:true,paraSpaceAfterPt:0}}));
+            slide.addText(first?'INGREDIENTS':'INGREDIENTS â€” CONTINUED',{x:left,y:first?.60:.9,w:ingW,h:first?.328:.3,fontSize:11,bold:true,fontFace:'Century Gothic',charSpacing:2,margin:0});
+            const ingText=(ingChunks[i]||[]).map(ing=>({text:`${ing.qty||''} ${ing.unit||''} â€” ${ing.name||''}`.trim(),options:{fontSize:(fit.ingredients?.fontPt||9),fontFace:'Century Gothic',breakLine:true,paraSpaceAfterPt:0}}));
             slide.addText(ingText.length?ingText:[{text:first?'No ingredients listed.':'No additional ingredients on this page.',options:{fontSize:8,color:'777777'}}],{x:left,y:first?.95:1.25,w:ingW,h:first?3.55:3.1,valign:'top',wrap:true,margin:0});
-            slide.addText(first?'PREPARATION':'PREPARATION — CONTINUED',{x:prepX,y:first?.60:.9,w:prepW,h:first?.328:.3,fontSize:12,bold:true,fontFace:'Century Gothic',charSpacing:2,margin:0});
+            slide.addText(first?'PREPARATION':'PREPARATION â€” CONTINUED',{x:prepX,y:first?.60:.9,w:prepW,h:first?.328:.3,fontSize:12,bold:true,fontFace:'Century Gothic',charSpacing:2,margin:0});
             slide.addText(stepChunks[i].length?stepChunks[i].join('\n\n'):'',{x:prepX,y:first?.95:1.25,w:prepW,h:first?3.561:(i===pages-1?2.65:3.25),fontSize:fit.steps.fontPt,fontFace:'Century Gothic',valign:'top',wrap:true,margin:0,breakLine:false,paraSpaceAfterPt:6});
             if(i===pages-1){
                 const tips=richTextToPlainText(normalizeExportHtml(menu.tipsNotes||''),{dedupeAdjacentLines:false});
