@@ -3013,22 +3013,110 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
         }
 
         function formatQtyNumber(value){ return Number(value||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
-        function varianceQuantityDisplay(item,qty,{showPlus=false,html=true}={}){
-            if(qty===null||qty===undefined||!Number.isFinite(Number(qty)))return '-';
-            const n=Number(qty), sign=n<0?'-':(showPlus&&n>0?'+':''), abs=Math.abs(n);
-            const perCase=Math.abs(convertPurchaseToRecipeUnits(item,1,0));
-            const perInner=Math.abs(convertPurchaseToRecipeUnits(item,0,1));
-            let remaining=abs, cases=0, inners=0;
-            if(perCase>0){cases=Math.floor((remaining+1e-9)/perCase);remaining-=cases*perCase;}
-            if(perInner>0){inners=Math.floor((remaining+1e-9)/perInner);remaining-=inners*perInner;}
-            if(remaining<0.005)remaining=0;
-            const parts=[];
-            if(cases)parts.push(`${cases} ${cases===1?(item.packType||'Case'):((item.packType||'Case').endsWith('s')?(item.packType||'Case'):(item.packType||'Case')+'s')}`);
-            if(inners)parts.push(`${inners} ${inners===1?(item.unitDescriptor||'Unit'):((item.unitDescriptor||'Unit').endsWith('s')?(item.unitDescriptor||'Unit'):(item.unitDescriptor||'Unit')+'s')}`);
-            if(remaining||!parts.length)parts.push(`${formatQtyNumber(remaining)} ${unitDisplayLabel(item.recipeMeasure,remaining,{compact:true})}`);
-            const main=sign+parts.join(' + '), total=`${sign}${formatQtyNumber(abs)} ${unitDisplayLabel(item.recipeMeasure,abs,{compact:true})} total`;
-            return html?`<div class="variance-breakdown">${escapeHtml(main)}</div><div class="variance-total">${escapeHtml(total)}</div>`:`${main}\n${total}`;
-        }
+	    function varianceQuantityDisplay(item, qty, { showPlus = false, html = true } = {}) {
+		    if (
+		        qty === null ||
+		        qty === undefined ||
+		        !Number.isFinite(Number(qty))
+		    ) {
+		        return '-';
+		    }
+		
+		    const n = Number(qty);
+		    const sign = n < 0 ? '-' : (showPlus && n > 0 ? '+' : '');
+		    const abs = Math.abs(n);
+		
+		    const perCase = Math.abs(convertPurchaseToRecipeUnits(item, 1, 0));
+		    const perInner = Math.abs(convertPurchaseToRecipeUnits(item, 0, 1));
+		
+		    let remaining = abs;
+		    let cases = 0;
+		    let inners = 0;
+		
+		    if (perCase > 0) {
+		        cases = Math.floor((remaining + 1e-9) / perCase);
+		        remaining -= cases * perCase;
+		    }
+		
+		    if (perInner > 0) {
+		        inners = Math.floor((remaining + 1e-9) / perInner);
+		        remaining -= inners * perInner;
+		    }
+		
+		    if (remaining < 0.005) {
+		        remaining = 0;
+		    }
+		
+		    const pluralizeLabel = (label, quantity) => {
+		        const cleanLabel = String(label || 'Unit').trim();
+		
+		        // "Each" is already singular and plural.
+		        if (cleanLabel.toLowerCase() === 'each') {
+		            return 'Each';
+		        }
+		
+		        if (quantity === 1) {
+		            return cleanLabel;
+		        }
+		
+		        return cleanLabel.endsWith('s')
+		            ? cleanLabel
+		            : cleanLabel + 's';
+		    };
+		
+		    const parts = [];
+		
+		    if (cases) {
+		        parts.push(
+		            `${cases} ${pluralizeLabel(item.packType || 'Case', cases)}`
+		        );
+		    }
+		
+		    if (inners) {
+		        parts.push(
+		            `${inners} ${pluralizeLabel(item.unitDescriptor || 'Unit', inners)}`
+		        );
+		    }
+		
+		    if (remaining || !parts.length) {
+		        parts.push(
+		            `${formatQtyNumber(remaining)} ${unitDisplayLabel(
+		                item.recipeMeasure,
+		                remaining,
+		                { compact: true }
+		            )}`
+		        );
+		    }
+		
+		    const main = sign + parts.join(' + ');
+		
+		    const total =
+		        `${sign}${formatQtyNumber(abs)} ` +
+		        `${unitDisplayLabel(item.recipeMeasure, abs, { compact: true })} total`;
+		
+		    /*
+		     * Show the total line only when the result contains a case
+		     * or more than one measurement component.
+		     *
+		     * Examples:
+		     *   -3 Each                -> one line
+		     *   +867.64 fl oz          -> one line
+		     *   1 Case + 5 Each        -> includes total line
+		     *   2 Cases + 3 Each       -> includes total line
+		     */
+		    const showTotalLine = cases > 0 || parts.length > 1;
+		
+		    if (!html) {
+		        return showTotalLine
+		            ? `${main}\n${total}`
+		            : main;
+		    }
+		
+		    return showTotalLine
+		        ? `<div class="variance-breakdown">${escapeHtml(main)}</div>
+		           <div class="variance-total">${escapeHtml(total)}</div>`
+		        : `<div class="variance-breakdown">${escapeHtml(main)}</div>`;
+		}
 
         function renderVarianceTable() {
             const tbody = document.getElementById('varianceTableBody');
