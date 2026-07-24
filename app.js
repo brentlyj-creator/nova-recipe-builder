@@ -1,4 +1,5 @@
 
+		//--- Brent ---
         // --- Database Arrays ---
         let propertyDatabase = ["Hotel Alpha", "Hotel Beta", "Hotel Gamma"];
         let categoryDatabase = ["Food", "Liquor", "Wine", "Beer"];
