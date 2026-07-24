@@ -190,6 +190,33 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
 
 /* Recovery dashboard and compact variance */
 .variance-table-wrap{width:100%;overflow-x:auto}.variance-table-wrap thead th{position:static!important;top:auto!important}.variance-breakdown{white-space:normal!important;line-height:1.25}.variance-total{white-space:normal!important}.cogs-summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px;margin-bottom:18px}.cogs-history-wrap{overflow-x:auto}.cogs-history-wrap table{min-width:1080px}#varianceTable{font-size:.82rem;table-layout:fixed;min-width:1080px}#varianceTable th,#varianceTable td{padding:8px 6px;vertical-align:middle}#varianceTable input{max-width:58px;padding:5px 4px}.cogs-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+
+/* v20: encoding-safe controls, compact variance, and structured COGS dashboard */
+#varianceTable{table-layout:fixed;min-width:980px;font-size:.80rem;}
+#varianceTable th,#varianceTable td{padding:7px 5px;vertical-align:middle;}
+#varianceTable th:nth-child(1){width:140px;}
+#varianceTable th:nth-child(2){width:138px;}
+#varianceTable th:nth-child(3),#varianceTable th:nth-child(4),#varianceTable th:nth-child(5){width:124px;}
+#varianceTable th:nth-child(6){width:115px;}
+#varianceTable th:nth-child(7){width:130px;}
+#varianceTable th:nth-child(8){width:78px;}
+#varianceTable th:nth-child(9){width:82px;}
+#varianceTable td:nth-child(8),#varianceTable td:nth-child(9){white-space:nowrap;}
+#varianceTable input{width:55px!important;max-width:55px;padding:5px 3px;font-size:.76rem;}
+.variance-breakdown,.variance-total{white-space:normal;overflow-wrap:anywhere;}
+.cogs-section-label{font-size:.76rem;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#657786;margin:15px 0 7px;}
+.cogs-card-row{display:grid;gap:12px;margin-bottom:8px;}
+.cogs-card-row-3{grid-template-columns:repeat(3,minmax(0,1fr));}
+.cogs-card-row-4{grid-template-columns:repeat(4,minmax(0,1fr));}
+.cogs-notes{margin-top:14px;padding:10px 12px;background:#fff;border:1px solid var(--border-color);border-radius:5px;}
+.cogs-history-wrap{overflow-x:auto;overflow-y:visible;}
+.cogs-history-table{min-width:1040px;table-layout:auto;}
+.cogs-history-table thead th{position:static!important;top:auto!important;white-space:normal;}
+.cogs-history-table th,.cogs-history-table td{padding:9px 8px;vertical-align:top;line-height:1.25;}
+.cogs-history-table tbody tr{height:auto!important;}
+.history-date-to{white-space:nowrap;}.history-actions{white-space:nowrap;}
+@media(max-width:900px){.cogs-card-row-3,.cogs-card-row-4{grid-template-columns:repeat(2,minmax(0,1fr));}}
+
 </style>
 
     <meta name="theme-color" content="#18bc9c">
@@ -309,7 +336,7 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
 
             <div class="form-section">
                 <h3>Selected Menu Detail
-                    <button type="button" class="btn-submit" onclick="printMenuReport()" style="width:auto; padding: 6px 14px; font-size:0.85rem; margin-left:15px;">🖨 Print Report</button>
+                    <button type="button" class="btn-submit" onclick="printMenuReport()" style="width:auto; padding: 6px 14px; font-size:0.85rem; margin-left:15px;">Print Report</button>
                     <button type="button" class="action-btn" onclick="setAllMenuCategoriesCollapsed(false)" style="margin-left:10px;">Expand All</button>
                     <button type="button" class="action-btn" onclick="setAllMenuCategoriesCollapsed(true)">Collapse All</button>
                 </h3>
@@ -480,8 +507,8 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
                         <option value="top15-bottom10-qty">Top 15 / Bottom 10 (Qty)</option>
                     </select>
                     <button type="button" class="action-btn" style="background-color:var(--cancel)" onclick="resetVarianceCounts()">Reset Counts</button>
-                    <button type="button" class="btn-submit" onclick="calculateVariance()" style="width:auto;padding:8px 16px;background-color:var(--info);">🧮 Calculate Variance</button>
-                    <button type="button" class="btn-submit" onclick="printVarianceReport()" style="width:auto;padding:8px 16px;">🖨 Export Report</button>
+                    <button type="button" class="btn-submit" onclick="calculateVariance()" style="width:auto;padding:8px 16px;background-color:var(--info);">Calculate Variance</button>
+                    <button type="button" class="btn-submit" onclick="printVarianceReport()" style="width:auto;padding:8px 16px;">Export Report</button>
                 </div>
                 <div id="varianceLastCalculated" style="text-align:right;font-size:0.78rem;color:#7f8c8d;margin-top:6px;">Not yet calculated for this property.</div>
             </div>
