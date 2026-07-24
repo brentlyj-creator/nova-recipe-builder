@@ -6,6 +6,8 @@
         let supplierDatabase = ["Sysco", "GFS", "Local Market"];
         let packTypeDatabase = ['Case', 'Bag', 'Bottle', 'Jug', 'Each', 'Keg', 'Container']; // Global received-as pack types
         let unitDescriptorDatabase = ['Unit', 'Bag', 'Box', 'Sleeve', 'Tray', 'Portion']; // Global unit-per-pack descriptors
+        let customRecipeUnitDatabase = []; // [{id,singular,plural}] global custom count units
+        let monthlyFoodCostDatabase = []; // property/month reporting snapshots
         
         let itemDatabase = []; // Global
         let prepDatabase = []; // Localized (has .property key)
@@ -29,18 +31,20 @@
 
         let itemCurrentPage = 1;
         const ITEMS_PER_PAGE = 100;
-        const APP_VERSION = '17.0';
+        const APP_VERSION = '18.0';
         const APP_STORAGE_KEY = `fb_recipe_cogs_manager_v${APP_VERSION.replace('.', '_')}`;
-        const LEGACY_STORAGE_KEYS = ['fb_recipe_cogs_manager_v16_0', 'fb_recipe_cogs_manager_v16', 'fb_recipe_cogs_manager_v15', 'fb_recipe_cogs_manager_v15_0'];
+        const LEGACY_STORAGE_KEYS = ['fb_recipe_cogs_manager_v17_0', 'fb_recipe_cogs_manager_v17', 'fb_recipe_cogs_manager_v16_0', 'fb_recipe_cogs_manager_v16', 'fb_recipe_cogs_manager_v15', 'fb_recipe_cogs_manager_v15_0'];
 
         // --- PROPERTY & CATEGORY MANAGEMENT LOGIC ---
         const REPORTING_GROUPS = ['Food','LWB','Non Alc','Unassigned'];
         function inferCategorySettings(category) {
             const c = String(category || '').trim().toLowerCase();
-            if (c === 'food') return { reportingGroup:'Food', defaultScope:'global' };
-            if (['liquor','wine','beer'].includes(c)) return { reportingGroup:'LWB', defaultScope:'property' };
-            if (c === 'non alcoholic') return { reportingGroup:'Non Alc', defaultScope:'global' };
-            return { reportingGroup:'Unassigned', defaultScope:'global' };
+            if (c === 'food') return { reportingGroup:'Food', varianceSubgroup:'', defaultScope:'global' };
+            if (c === 'liquor') return { reportingGroup:'LWB', varianceSubgroup:'Liquor', defaultScope:'property' };
+            if (c === 'wine') return { reportingGroup:'LWB', varianceSubgroup:'Wine', defaultScope:'property' };
+            if (c === 'beer') return { reportingGroup:'LWB', varianceSubgroup:'Beer', defaultScope:'property' };
+            if (c === 'non alcoholic') return { reportingGroup:'Non Alc', varianceSubgroup:'', defaultScope:'global' };
+            return { reportingGroup:'Unassigned', varianceSubgroup:'', defaultScope:'global' };
         }
         function ensureCategorySettings() {
             if (!categorySettings || typeof categorySettings !== 'object') categorySettings = {};
@@ -75,6 +79,7 @@
             renderSupplierTable();
             renderPackTypeTable();
             renderUnitDescriptorTable();
+            renderCustomRecipeUnitTable();
             renderMenuItemCategoryTable();
             reconcilePrepCategories();
             renderPrepCategoryTable();
@@ -568,6 +573,8 @@ function executeBulkExport() {
                 supplierDatabase: Array.isArray(supplierDatabase) ? [...supplierDatabase] : [],
                 packTypeDatabase: Array.isArray(packTypeDatabase) ? [...packTypeDatabase] : [],
                 unitDescriptorDatabase: Array.isArray(unitDescriptorDatabase) ? [...unitDescriptorDatabase] : [],
+                customRecipeUnitDatabase: Array.isArray(customRecipeUnitDatabase) ? [...customRecipeUnitDatabase] : [],
+                monthlyFoodCostDatabase: Array.isArray(monthlyFoodCostDatabase) ? [...monthlyFoodCostDatabase] : [],
                 menuItemCategoryDatabase: Array.isArray(menuItemCategoryDatabase) ? [...menuItemCategoryDatabase] : [],
                 prepCategoryDatabase: Array.isArray(prepCategoryDatabase) ? [...prepCategoryDatabase] : [],
                 inventoryCountDatabase: (inventoryCountDatabase && typeof inventoryCountDatabase === 'object') ? inventoryCountDatabase : {},
@@ -588,6 +595,8 @@ function executeBulkExport() {
             supplierDatabase = Array.isArray(data.supplierDatabase) ? data.supplierDatabase : ['Sysco', 'GFS', 'Local Market'];
             packTypeDatabase = Array.isArray(data.packTypeDatabase) ? data.packTypeDatabase : ['Case', 'Bag', 'Bottle', 'Jug', 'Each', 'Keg', 'Container'];
             unitDescriptorDatabase = Array.isArray(data.unitDescriptorDatabase) ? data.unitDescriptorDatabase : ['Unit', 'Bag', 'Box', 'Sleeve', 'Tray', 'Portion'];
+            customRecipeUnitDatabase = Array.isArray(data.customRecipeUnitDatabase) ? data.customRecipeUnitDatabase : [];
+            monthlyFoodCostDatabase = Array.isArray(data.monthlyFoodCostDatabase) ? data.monthlyFoodCostDatabase : [];
             menuItemCategoryDatabase = Array.isArray(data.menuItemCategoryDatabase) ? data.menuItemCategoryDatabase : ['Appies', 'Salads', 'Entrees', 'LWB'];
             prepCategoryDatabase = Array.isArray(data.prepCategoryDatabase) ? data.prepCategoryDatabase : [];
             inventoryCountDatabase = (data.inventoryCountDatabase && typeof data.inventoryCountDatabase === 'object') ? data.inventoryCountDatabase : {};
@@ -602,6 +611,8 @@ function executeBulkExport() {
             supplierDatabase = supplierDatabase.map(plainText).filter(Boolean);
             packTypeDatabase = packTypeDatabase.map(plainText).filter(Boolean);
             unitDescriptorDatabase = unitDescriptorDatabase.map(plainText).filter(Boolean);
+            customRecipeUnitDatabase = customRecipeUnitDatabase.map(u => ({ id: plainText(u.id) || generateId('CUNIT'), singular: plainText(u.singular), plural: plainText(u.plural) })).filter(u => u.singular && u.plural);
+            monthlyFoodCostDatabase = monthlyFoodCostDatabase.filter(r => r && typeof r === 'object');
             if (!unitDescriptorDatabase.includes('Unit')) unitDescriptorDatabase.unshift('Unit');
             menuItemCategoryDatabase = menuItemCategoryDatabase.map(plainText).filter(Boolean);
             prepCategoryDatabase = prepCategoryDatabase.map(plainText).filter(Boolean);
@@ -1265,6 +1276,26 @@ function executeBulkExport() {
             };
         }
 
+        function currentPropertyMenuTotals(){ const menus=getCurrentPropertyMenus();let sales=0,cost=0;menus.forEach(m=>{const t=calculateMenuTotals(m);sales+=t.sales;cost+=t.cost});return {menus,sales,cost,pct:sales?cost/sales*100:0}; }
+        function openMonthlyFoodCostModal(id=''){
+            const rec=monthlyFoodCostDatabase.find(r=>r.id===id);document.getElementById('monthlyFoodCostEditId').value=rec?.id||'';document.getElementById('monthlyFoodCostStart').value=rec?.start||'';document.getElementById('monthlyFoodCostEnd').value=rec?.end||'';document.getElementById('monthlyFoodSales').value=rec?.reportedSales??'';document.getElementById('monthlyFoodCost').value=rec?.reportedCost??'';document.getElementById('monthlyFoodCostPct').value=rec?.reportedPct??'';document.getElementById('monthlyFoodCostNotes').value=rec?.notes||'';syncMonthlyFoodCostInputs('load');document.getElementById('monthlyFoodCostModal').style.display='block';
+        }
+        function syncMonthlyFoodCostInputs(source){
+            const sales=parseFloat(document.getElementById('monthlyFoodSales')?.value),cost=parseFloat(document.getElementById('monthlyFoodCost')?.value),pct=parseFloat(document.getElementById('monthlyFoodCostPct')?.value),note=document.getElementById('monthlyFoodCostCalcNote');
+            if(source==='pct'&&sales>=0&&pct>=0)document.getElementById('monthlyFoodCost').value=(sales*pct/100).toFixed(2);else if((source==='cost'||source==='sales')&&sales>0&&cost>=0)document.getElementById('monthlyFoodCostPct').value=(cost/sales*100).toFixed(2);
+            const c=parseFloat(document.getElementById('monthlyFoodCost')?.value),p=parseFloat(document.getElementById('monthlyFoodCostPct')?.value);if(note)note.textContent=(sales>0&&c>=0)?`Calculated FC: ${(c/sales*100).toFixed(2)}%${Number.isFinite(p)&&Math.abs(p-c/sales*100)>0.10?' - warning: entered percentage differs by more than 0.10 points.':''}`:'';
+        }
+        function saveMonthlyFoodCostRecord(){
+            const id=document.getElementById('monthlyFoodCostEditId').value,start=document.getElementById('monthlyFoodCostStart').value,end=document.getElementById('monthlyFoodCostEnd').value,reportedSales=parseFloat(document.getElementById('monthlyFoodSales').value),reportedCost=parseFloat(document.getElementById('monthlyFoodCost').value),enteredPct=parseFloat(document.getElementById('monthlyFoodCostPct').value),notes=plainText(document.getElementById('monthlyFoodCostNotes').value);
+            if(!start||!end||start>end||!(reportedSales>0)||!(reportedCost>=0)){showToast('Enter a valid period, reported food sales, and cost dollars or percentage.','warning');return;}const calculatedPct=reportedCost/reportedSales*100;if(Number.isFinite(enteredPct)&&Math.abs(enteredPct-calculatedPct)>0.10){showToast('Reported dollars and percentage differ by more than 0.10 percentage points. Please correct them.','warning');return;}
+            const overlap=monthlyFoodCostDatabase.find(r=>r.property===currentProperty&&r.id!==id&&start<=r.end&&end>=r.start);if(overlap){showToast(`This period overlaps ${overlap.start} to ${overlap.end}. Edit the existing period instead.`,'warning');return;}
+            const t=currentPropertyMenuTotals(),record={id:id||generateId('FC'),property:currentProperty,start,end,reportedSales,reportedCost,reportedPct:calculatedPct,notes,theoreticalSales:t.sales,theoreticalCost:t.cost,theoreticalPct:t.pct,savedAt:new Date().toISOString()};const idx=monthlyFoodCostDatabase.findIndex(r=>r.id===id);if(idx>=0)monthlyFoodCostDatabase[idx]=record;else monthlyFoodCostDatabase.push(record);closeModal('monthlyFoodCostModal');renderMonthlyFoodCostSummary();saveAllDataToBrowser(false);showToast('Monthly food cost saved with a theoretical snapshot.','success');
+        }
+        function deleteMonthlyFoodCostRecord(id){const r=monthlyFoodCostDatabase.find(x=>x.id===id);if(!r||!confirm(`Delete the food-cost period ${r.start} to ${r.end}?`))return;monthlyFoodCostDatabase=monthlyFoodCostDatabase.filter(x=>x.id!==id);renderMonthlyFoodCostSummary();saveAllDataToBrowser(false);}
+        function renderMonthlyFoodCostSummary(){
+            const el=document.getElementById('monthlyFoodCostSummary');if(!el)return;const records=monthlyFoodCostDatabase.filter(r=>r.property===currentProperty).sort((a,b)=>b.end.localeCompare(a.end));if(!records.length){el.innerHTML='<div style="margin-top:12px;padding:10px 12px;background:#f8f9fa;border:1px solid var(--border-color);border-radius:5px;color:#657786;font-size:.85rem">No monthly hotel-reported food cost saved yet.</div>';return;}const latest=records[0],dollar=latest.reportedCost-latest.theoreticalCost,point=latest.reportedPct-latest.theoreticalPct,pct=latest.reportedSales?dollar/latest.reportedSales*100:0,bad=dollar>0,color=bad?'#e74c3c':'#18bc9c',status=dollar>0?'Unfavourable':(dollar<0?'Favourable':'On theoretical');el.innerHTML=`<div style="margin-top:12px;border:1px solid var(--border-color);border-radius:6px;overflow:hidden"><div style="padding:10px 12px;background:#f2f5f7;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><strong>Latest Monthly Food Cost: ${escapeHtml(latest.start)} to ${escapeHtml(latest.end)}</strong><button class="mini-action-btn" onclick="document.getElementById('monthlyFoodCostHistory').style.display=document.getElementById('monthlyFoodCostHistory').style.display==='none'?'block':'none'">View History</button></div><div style="display:grid;grid-template-columns:repeat(6,minmax(130px,1fr));gap:8px;padding:10px"><div><small>Reported Sales</small><br><strong>$${latest.reportedSales.toFixed(2)}</strong></div><div><small>Reported Cost</small><br><strong>$${latest.reportedCost.toFixed(2)}</strong></div><div><small>Reported FC</small><br><strong>${latest.reportedPct.toFixed(2)}%</strong></div><div><small>Variance $</small><br><strong style="color:${color}">${dollar>=0?'+':''}$${dollar.toFixed(2)}</strong></div><div><small>Variance %</small><br><strong style="color:${color}">${pct>=0?'+':''}${pct.toFixed(2)}%</strong></div><div><small>FC Point Variance</small><br><strong style="color:${color}">${point>=0?'+':''}${point.toFixed(2)} pts ${status}</strong></div></div><div id="monthlyFoodCostHistory" style="display:none;padding:0 10px 10px;overflow:auto"><table><thead><tr><th>Period</th><th>Reported Sales</th><th>Reported Cost</th><th>Reported FC</th><th>Theo Sales</th><th>Theo Cost</th><th>Theo FC</th><th>Variance $</th><th>Actions</th></tr></thead><tbody>${records.map(r=>{const v=r.reportedCost-r.theoreticalCost;return `<tr><td>${escapeHtml(r.start)} to ${escapeHtml(r.end)}</td><td>$${r.reportedSales.toFixed(2)}</td><td>$${r.reportedCost.toFixed(2)}</td><td>${r.reportedPct.toFixed(2)}%</td><td>$${r.theoreticalSales.toFixed(2)}</td><td>$${r.theoreticalCost.toFixed(2)}</td><td>${r.theoreticalPct.toFixed(2)}%</td><td style="color:${v>0?'#e74c3c':'#18bc9c'}">${v>=0?'+':''}$${v.toFixed(2)}</td><td><button class="action-btn" onclick="openMonthlyFoodCostModal('${r.id}')">Edit</button><button class="action-btn" style="background:var(--cancel)" onclick="deleteMonthlyFoodCostRecord('${r.id}')">Delete</button></td></tr>`}).join('')}</tbody></table></div></div>`;
+        }
+
         function renderPropertyMenus() {
             renderPropertyMenuPicker();
 
@@ -1283,7 +1314,7 @@ function executeBulkExport() {
 
             if (menus.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#777;">No menus created for this property yet.</td></tr>`;
-                return;
+                renderMonthlyFoodCostSummary(); return;
             }
 
             menus.forEach(menu => {
@@ -1356,6 +1387,7 @@ function executeBulkExport() {
 				</td>			    
 				<td></td>
 			</tr>`;
+            renderMonthlyFoodCostSummary();
         }
 
         function renderSelectedPropertyMenuDetails() {
@@ -1682,12 +1714,14 @@ function executeBulkExport() {
             ensureCategorySettings(); tbody.innerHTML = '';
             categoryDatabase.forEach(cat => {
                 const cfg=getCategorySetting(cat), tr=document.createElement('tr');
-                tr.innerHTML = `<td style="padding:8px 0"><strong>${escapeHtml(cat)}</strong><div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap"><select onchange="changeCategoryReportingGroup('${escapeHtml(cat)}',this.value)" style="width:auto"><option value="Food" ${cfg.reportingGroup==='Food'?'selected':''}>Report: Food</option><option value="LWB" ${cfg.reportingGroup==='LWB'?'selected':''}>Report: LWB</option><option value="Non Alc" ${cfg.reportingGroup==='Non Alc'?'selected':''}>Report: Non Alc</option><option value="Unassigned" ${cfg.reportingGroup==='Unassigned'?'selected':''}>Report: Unassigned</option></select><select onchange="requestCategoryDefaultScopeChange('${escapeHtml(cat)}',this.value)" style="width:auto"><option value="global" ${cfg.defaultScope==='global'?'selected':''}>New items: Global</option><option value="property" ${cfg.defaultScope==='property'?'selected':''}>New items: Active Property</option></select></div></td><td style="text-align:right;padding:8px 0"><button class="action-btn" onclick="editCategory('${escapeHtml(cat)}')">Edit</button><button class="action-btn" style="background-color:var(--cancel)" onclick="deleteCategory('${escapeHtml(cat)}')">X</button></td>`;
+                const subgroupDisabled=cfg.reportingGroup!=='LWB';
+                tr.innerHTML = `<td style="padding:8px 0"><strong>${escapeHtml(cat)}</strong><div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap"><select onchange="changeCategoryReportingGroup('${escapeHtml(cat)}',this.value)" style="width:auto"><option value="Food" ${cfg.reportingGroup==='Food'?'selected':''}>Report: Food</option><option value="LWB" ${cfg.reportingGroup==='LWB'?'selected':''}>Report: LWB</option><option value="Non Alc" ${cfg.reportingGroup==='Non Alc'?'selected':''}>Report: Non Alc</option><option value="Unassigned" ${cfg.reportingGroup==='Unassigned'?'selected':''}>Report: Unassigned</option></select><select onchange="changeCategoryVarianceSubgroup('${escapeHtml(cat)}',this.value)" style="width:auto" ${subgroupDisabled?'disabled title="Available for LWB categories"':''}><option value="">Subgroup: Unassigned</option><option value="Liquor" ${cfg.varianceSubgroup==='Liquor'?'selected':''}>Subgroup: Liquor</option><option value="Wine" ${cfg.varianceSubgroup==='Wine'?'selected':''}>Subgroup: Wine</option><option value="Beer" ${cfg.varianceSubgroup==='Beer'?'selected':''}>Subgroup: Beer</option><option value="Other LWB" ${cfg.varianceSubgroup==='Other LWB'?'selected':''}>Subgroup: Other LWB</option></select><select onchange="requestCategoryDefaultScopeChange('${escapeHtml(cat)}',this.value)" style="width:auto"><option value="global" ${cfg.defaultScope==='global'?'selected':''}>New items: Global</option><option value="property" ${cfg.defaultScope==='property'?'selected':''}>New items: Active Property</option></select></div></td><td style="text-align:right;padding:8px 0"><button class="action-btn" onclick="editCategory('${escapeHtml(cat)}')">Edit</button><button class="action-btn" style="background-color:var(--cancel)" onclick="deleteCategory('${escapeHtml(cat)}')">X</button></td>`;
                 tbody.appendChild(tr);
             });
             updateItemCategoryDropdown(); updateItemCategoryFilterDropdown(); updateVarianceReportingGroupFilter();
         }
-        function changeCategoryReportingGroup(cat,value){ categorySettings[cat]={...getCategorySetting(cat),reportingGroup:value}; renderVarianceTable(); saveAllDataToBrowser(false); }
+        function changeCategoryReportingGroup(cat,value){ const cfg={...getCategorySetting(cat),reportingGroup:value}; if(value!=='LWB')cfg.varianceSubgroup=''; categorySettings[cat]=cfg; renderCategoryTable(); renderVarianceTable(); saveAllDataToBrowser(false); }
+        function changeCategoryVarianceSubgroup(cat,value){ categorySettings[cat]={...getCategorySetting(cat),varianceSubgroup:value}; renderVarianceTable(); saveAllDataToBrowser(false); }
         function requestCategoryDefaultScopeChange(cat,newScope){
             const cfg=getCategorySetting(cat); if(cfg.defaultScope===newScope)return;
             const items=itemDatabase.filter(i=>i.category===cat);
@@ -1718,9 +1752,17 @@ ${propertyDatabase.join('\n')}`,current);
         }
         function updateVarianceReportingGroupFilter(){
             const sel=document.getElementById('varianceReportingGroupFilter');if(!sel)return;const current=sel.value||'All';
-            const hasUnassigned=visibleItemsForProperty().some(i=>getCategorySetting(i.category).reportingGroup==='Unassigned');
-            sel.innerHTML='<option value="All">All Reporting Groups</option><option value="Food">Food</option><option value="LWB">LWB</option><option value="Non Alc">Non Alc</option>'+(hasUnassigned?'<option value="Unassigned">Unassigned</option>':'');
+            const settings=visibleItemsForProperty().map(i=>getCategorySetting(i.category));
+            const hasUnassigned=settings.some(x=>x.reportingGroup==='Unassigned'||(x.reportingGroup==='LWB'&&!x.varianceSubgroup));
+            sel.innerHTML='<option value="All">All Reporting Groups</option><option value="Food">Food</option><option value="LWB">LWB - Combined</option><option value="Liquor">Liquor</option><option value="Wine">Wine</option><option value="Beer">Beer</option><option value="Other LWB">Other LWB</option><option value="Non Alc">Non Alc</option>'+(hasUnassigned?'<option value="Unassigned">Unassigned</option>':'');
             sel.value=[...sel.options].some(o=>o.value===current)?current:'All';
+        }
+        function itemMatchesVarianceFilter(item,filter){
+            if(filter==='All')return true; const cfg=getCategorySetting(item.category);
+            if(filter==='LWB')return cfg.reportingGroup==='LWB';
+            if(['Liquor','Wine','Beer','Other LWB'].includes(filter))return cfg.reportingGroup==='LWB'&&cfg.varianceSubgroup===filter;
+            if(filter==='Unassigned')return cfg.reportingGroup==='Unassigned'||(cfg.reportingGroup==='LWB'&&!cfg.varianceSubgroup);
+            return cfg.reportingGroup===filter;
         }
         function addCategory() {
             const val = plainText(document.getElementById('newCategoryName').value);
@@ -2067,6 +2109,38 @@ ${propertyDatabase.join('\n')}`,current);
             updateItemFormPreview();
         }
 
+        // --- CUSTOM RECIPE UNITS (GLOBAL) ---
+        function customUnitByValue(value){ return customRecipeUnitDatabase.find(u=>u.id===value||u.singular===value); }
+        function customUnitLabel(value,qty=1){ const u=customUnitByValue(value); return u ? (Math.abs(parseFloat(qty)||0)===1?u.singular:u.plural) : (UNIT_LABELS[value]||value); }
+        function renderCustomRecipeUnitTable(){
+            const body=document.getElementById('customRecipeUnitTableBody'); if(!body)return;
+            body.innerHTML=customRecipeUnitDatabase.length?customRecipeUnitDatabase.slice().sort((a,b)=>a.singular.localeCompare(b.singular)).map(u=>`<tr><td>${escapeHtml(u.singular)}</td><td>${escapeHtml(u.plural)}</td><td><button class="action-btn" onclick="editCustomRecipeUnit('${u.id}')">Edit</button><button class="action-btn" style="background:var(--cancel)" onclick="deleteCustomRecipeUnit('${u.id}')">X</button></td></tr>`).join(''):'<tr><td colspan="3" style="color:#777;text-align:center">No custom recipe units added yet.</td></tr>';
+            populateCustomConversionUnitDropdowns('customConvFromUnit','customConvToUnit'); populateCustomConversionUnitDropdowns('editModalCustomConvFromUnit','editModalCustomConvToUnit');
+        }
+        function addCustomRecipeUnit(){
+            const singular=plainText(document.getElementById('newCustomUnitSingular')?.value), plural=plainText(document.getElementById('newCustomUnitPlural')?.value);
+            if(!singular||!plural){showToast('Enter both singular and plural unit names.','warning');return;}
+            const duplicate=customRecipeUnitDatabase.some(u=>[u.singular,u.plural].some(n=>n.toLowerCase()===singular.toLowerCase()||n.toLowerCase()===plural.toLowerCase()))||Object.keys(ALL_MEASURE_UNITS).some(n=>n.toLowerCase()===singular.toLowerCase());
+            if(duplicate){showToast('That custom recipe unit already exists or conflicts with a standard unit.','warning');return;}
+            customRecipeUnitDatabase.push({id:generateId('CUNIT'),singular,plural}); document.getElementById('newCustomUnitSingular').value='';document.getElementById('newCustomUnitPlural').value='';renderCustomRecipeUnitTable();saveAllDataToBrowser(false);
+        }
+        function customUnitUsage(id){
+            const usedItems=itemDatabase.filter(i=>i.recipeMeasure===id||(i.customConversions||[]).some(c=>c.fromUnit===id||c.toUnit===id));
+            const recipeLines=[];[...prepDatabase,...menuDatabase].forEach(r=>(r.ingredients||[]).forEach(i=>{if(i.unit===id)recipeLines.push(`${r.name}: ${i.name}`)}));
+            return {usedItems,recipeLines};
+        }
+        function editCustomRecipeUnit(id){
+            const u=customUnitByValue(id);if(!u)return;const singular=plainText(prompt('Singular unit name:',u.singular));if(!singular)return;const plural=plainText(prompt('Plural unit name:',u.plural));if(!plural)return;
+            const duplicate=customRecipeUnitDatabase.some(x=>x.id!==id&&[x.singular,x.plural].some(n=>n.toLowerCase()===singular.toLowerCase()||n.toLowerCase()===plural.toLowerCase()));if(duplicate){alert('That unit name already exists.');return;}
+            u.singular=singular;u.plural=plural;renderCustomRecipeUnitTable();renderItemTable();renderVarianceTable();saveAllDataToBrowser(false);
+        }
+        function deleteCustomRecipeUnit(id){
+            const u=customUnitByValue(id);if(!u)return;const usage=customUnitUsage(id);if(usage.usedItems.length||usage.recipeLines.length){alert(`Cannot delete "${u.singular}" because it is in use.
+
+Items: ${usage.usedItems.map(i=>i.name).join(', ')||'None'}
+Recipe lines: ${usage.recipeLines.slice(0,12).join(', ')||'None'}`);return;}if(!confirm(`Delete custom recipe unit "${u.singular}"?`))return;customRecipeUnitDatabase=customRecipeUnitDatabase.filter(x=>x.id!==id);renderCustomRecipeUnitTable();saveAllDataToBrowser(false);
+        }
+
         // --- LIVE PREVIEW TEXT FOR ITEM FORM ---
         function updateItemFormPreview() {
             const previewEl = document.getElementById('itemFormPreview');
@@ -2310,16 +2384,16 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
         const ALL_MEASURE_UNITS = { L:'Liters (L)', ML:'Milliliters (ML)', FL_OZ:'Fluid oz', Cups:'Cups', Tbsp:'Tbsp', Tsp:'Tsp', KG:'Kilograms (KG)', G:'Grams (G)', LBS:'Pounds (lbs)', OZ:'Ounces (oz)', Each:'Each' };
 
         function getCustomConversionUnitLabel(unit) {
-            return ALL_MEASURE_UNITS[unit] || unit;
+            const custom=customUnitByValue(unit); return custom ? custom.singular : (ALL_MEASURE_UNITS[unit] || unit);
         }
 
         function populateCustomConversionUnitDropdowns(fromSelectId, toSelectId) {
             const fromSel = document.getElementById(fromSelectId);
             const toSel = document.getElementById(toSelectId);
             if (!fromSel || !toSel) return;
-            const unitList = Object.keys(ALL_MEASURE_UNITS).filter(u => u !== 'Portion');
+            const unitList = [...Object.keys(ALL_MEASURE_UNITS).filter(u => u !== 'Portion'), ...customRecipeUnitDatabase.map(u=>u.id)];
             [fromSel, toSel].forEach(sel => {
-                sel.innerHTML = unitList.map(u => `<option value="${u}">${ALL_MEASURE_UNITS[u]}</option>`).join('');
+                sel.innerHTML = unitList.map(u => `<option value="${u}">${escapeHtml(getCustomConversionUnitLabel(u))}</option>`).join('');
             });
             fromSel.value = 'OZ';
             toSel.value = 'Cups';
@@ -2424,7 +2498,7 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
         // --- CENTRALIZED UNIT CONVERSION HELPERS ---
         const UNIT_CONVERSIONS = { volume: { L:1000, ML:1, FL_OZ:29.5735, Cups:250, Tbsp:15, Tsp:5 }, weight: { KG:1000, G:1, LBS:453.592, OZ:28.3495 } };
         const UNIT_LABELS = { L:'Liters (L)', ML:'Milliliters (ML)', FL_OZ:'Fluid oz', Cups:'Cups', Tbsp:'Tbsp', Tsp:'Tsp', KG:'Kilograms (KG)', G:'Grams (G)', LBS:'Pounds (lbs)', OZ:'Ounces (oz)', Each:'Each', Portion:'Portion' };
-        function getUnitFamily(unit) { if (UNIT_CONVERSIONS.volume[unit]) return 'volume'; if (UNIT_CONVERSIONS.weight[unit]) return 'weight'; if (unit === 'Each' || unit === 'Portion') return 'count'; return null; }
+        function getUnitFamily(unit) { if (UNIT_CONVERSIONS.volume[unit]) return 'volume'; if (UNIT_CONVERSIONS.weight[unit]) return 'weight'; if (unit === 'Each' || unit === 'Portion' || customUnitByValue(unit)) return 'count'; return null; }
 
         // Looks up a direct or inverse custom conversion ratio on an item, e.g. { fromQty:8, fromUnit:'OZ', toQty:1, toUnit:'Cups' }.
         // Returns the multiplier to convert 1 unit of fromUnit into toUnit, or null if no matching custom rule exists.
@@ -2501,7 +2575,7 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
             let units = [];
             if (f === 'volume') units = Object.keys(UNIT_CONVERSIONS.volume);
             else if (f === 'weight') units = Object.keys(UNIT_CONVERSIONS.weight);
-            else units = ['Each'];
+            else units = ['Each', ...customRecipeUnitDatabase.map(u=>u.id)];
             if (item && Array.isArray(item.customConversions)) {
                 item.customConversions.forEach(c => {
                     [c.fromUnit, c.toUnit].forEach(u => { if (!units.includes(u)) units.push(u); });
@@ -2862,6 +2936,24 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
             document.getElementById('itemDrilldownModal').style.display = 'block';
         }
 
+        function formatQtyNumber(value){ return Number(value||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
+        function varianceQuantityDisplay(item,qty,{showPlus=false,html=true}={}){
+            if(qty===null||qty===undefined||!Number.isFinite(Number(qty)))return '\u2014';
+            const n=Number(qty), sign=n<0?'−':(showPlus&&n>0?'+':''), abs=Math.abs(n);
+            const perCase=Math.abs(convertPurchaseToRecipeUnits(item,1,0));
+            const perInner=Math.abs(convertPurchaseToRecipeUnits(item,0,1));
+            let remaining=abs, cases=0, inners=0;
+            if(perCase>0){cases=Math.floor((remaining+1e-9)/perCase);remaining-=cases*perCase;}
+            if(perInner>0){inners=Math.floor((remaining+1e-9)/perInner);remaining-=inners*perInner;}
+            if(remaining<0.005)remaining=0;
+            const parts=[];
+            if(cases)parts.push(`${cases} ${cases===1?(item.packType||'Case'):((item.packType||'Case').endsWith('s')?(item.packType||'Case'):(item.packType||'Case')+'s')}`);
+            if(inners)parts.push(`${inners} ${inners===1?(item.unitDescriptor||'Unit'):((item.unitDescriptor||'Unit').endsWith('s')?(item.unitDescriptor||'Unit'):(item.unitDescriptor||'Unit')+'s')}`);
+            if(remaining||!parts.length)parts.push(`${formatQtyNumber(remaining)} ${customUnitLabel(item.recipeMeasure,remaining)}`);
+            const main=sign+parts.join(' + '), total=`${sign}${formatQtyNumber(abs)} ${customUnitLabel(item.recipeMeasure,abs)} total`;
+            return html?`<div style="font-weight:600;white-space:nowrap">${escapeHtml(main)}</div><div style="font-size:.72rem;color:#7f8c8d;white-space:nowrap">${escapeHtml(total)}</div>`:`${main}\n${total}`;
+        }
+
         function renderVarianceTable() {
             const tbody = document.getElementById('varianceTableBody');
             if (!tbody) return;
@@ -2873,7 +2965,7 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
             const usedItemIds = new Set(Object.keys(usageMap));
             updateVarianceReportingGroupFilter();
             const groupFilter=document.getElementById('varianceReportingGroupFilter')?.value || 'All';
-            let items = visibleItemsForProperty().filter(item => usedItemIds.has(item.id) && (groupFilter==='All' || getCategorySetting(item.category).reportingGroup===groupFilter));
+            let items = visibleItemsForProperty().filter(item => usedItemIds.has(item.id) && itemMatchesVarianceFilter(item,groupFilter));
             if (searchText) items = items.filter(item => (item.name || '').toLowerCase().includes(searchText));
 
             let rows = items.map(item => {
@@ -2928,13 +3020,13 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
                 const descriptor = r.item.unitDescriptor || 'Unit';
                 const packPlaceholder = `+${descriptor}/Pk`;
                 const varianceColor = !r.hasCalc ? '#aaa' : (r.varianceQty > 0 ? '#e74c3c' : (r.varianceQty < 0 ? '#3498db' : '#18bc9c'));
-                const varianceQtyDisplay = r.hasCalc ? `${r.varianceQty >= 0 ? '+' : ''}${r.varianceQty.toFixed(2)} ${escapeHtml(r.item.recipeMeasure)}` : '\u2014';
+                const varianceQtyDisplay = r.hasCalc ? varianceQuantityDisplay(r.item,r.varianceQty,{showPlus:true}) : '\u2014';
                 const varianceCostDisplay = r.hasCalc ? `${r.varianceCost >= 0 ? '+' : ''}$${r.varianceCost.toFixed(2)}` : '\u2014';
-                const actualQtyDisplay = r.hasCalc ? `${r.actualQty.toFixed(2)} ${escapeHtml(r.item.recipeMeasure)}` : '\u2014';
+                const actualQtyDisplay = r.hasCalc ? varianceQuantityDisplay(r.item,r.actualQty) : '\u2014';
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td><strong style="cursor:pointer;color:#2980b9;text-decoration:underline;" onclick="openItemDrilldown('${r.item.id}')" title="Click to see which recipes use this item">${escapeHtml(r.item.name)}</strong><br><span style="font-size:0.75rem;color:#7f8c8d;">${escapeHtml(r.item.packType || '')} ${r.item.units || ''} ${escapeHtml(descriptor)}${(parseFloat(r.item.units) === 1) ? '' : 's'} x ${r.item.unitSize || ''} ${escapeHtml(r.item.unitMeasure || '')}</span></td>
-                    <td>${r.theoreticalQty.toFixed(2)} ${escapeHtml(r.item.recipeMeasure)}</td>
+                    <td>${varianceQuantityDisplay(r.item,r.theoreticalQty)}</td>
                     <td style="white-space:nowrap;">
                         <input type="number" step="0.01" placeholder="Cases" value="${entry.opening.cases || ''}" style="width:65px" oninput="updateInventoryField('${r.item.id}','opening','cases',this.value)">
                         <input type="number" step="0.01" placeholder="${escapeHtml(packPlaceholder)}" title="${escapeHtml(descriptor)}s per case" value="${entry.opening.packQty || ''}" style="width:70px" oninput="updateInventoryField('${r.item.id}','opening','packQty',this.value)">
@@ -3005,14 +3097,15 @@ function positionCollapsedFlyout(trigger,menu){if(!document.body.classList.conta
             const sortModeEl = document.getElementById('varianceSortMode');
             const sortLabel = sortModeEl ? sortModeEl.options[sortModeEl.selectedIndex].textContent : '';
             const searchText = document.getElementById('varianceSearchInput')?.value || '';
+            const groupEl=document.getElementById('varianceReportingGroupFilter'); const groupLabel=groupEl?groupEl.options[groupEl.selectedIndex].textContent:'All Reporting Groups';
             const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
             const bodyRows = rows.map(r => `
                 <tr>
                     <td>${escapeHtml(r.item.name)}</td>
-                    <td>${r.theoreticalQty.toFixed(2)} ${escapeHtml(r.item.recipeMeasure)}</td>
-                    <td>${r.hasCalc ? r.actualQty.toFixed(2) + ' ' + escapeHtml(r.item.recipeMeasure) : '\u2014'}</td>
-                    <td>${r.hasCalc ? (r.varianceQty >= 0 ? '+' : '') + r.varianceQty.toFixed(2) + ' ' + escapeHtml(r.item.recipeMeasure) : '\u2014'}</td>
+                    <td>${varianceQuantityDisplay(r.item,r.theoreticalQty)}</td>
+                    <td>${r.hasCalc ? varianceQuantityDisplay(r.item,r.actualQty) : '\u2014'}</td>
+                    <td>${r.hasCalc ? varianceQuantityDisplay(r.item,r.varianceQty,{showPlus:true}) : '\u2014'}</td>
                     <td>$${r.costPerUnit.toFixed(4)}</td>
                     <td>${r.hasCalc ? (r.varianceCost >= 0 ? '+' : '') + '$' + r.varianceCost.toFixed(2) : '\u2014'}</td>
                 </tr>`).join('');
