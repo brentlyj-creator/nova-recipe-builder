@@ -219,7 +219,133 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
 .history-date-to{white-space:nowrap;}.history-actions{white-space:nowrap;}
 @media(max-width:900px){.cogs-card-row-3,.cogs-card-row-4{grid-template-columns:repeat(2,minmax(0,1fr));}}
 
-.cogs-top-actions{display:flex;align-items:flex-end;justify-content:flex-end;gap:10px;flex-wrap:wrap}.cogs-budget-control{display:flex;align-items:center;gap:6px;padding:7px 9px;background:#f8f9fa;border:1px solid var(--border-color);border-radius:5px}.cogs-budget-control label{margin:0;font-size:.78rem;white-space:nowrap}.cogs-budget-control input{width:82px;padding:7px}.cogs-budget-control span{font-weight:700}.cogs-budget-control .action-btn{margin:0;padding:8px 10px}.cogs-pdf-btn{background:#6f42c1;padding:9px 13px;margin:0;white-space:nowrap}.cogs-performance-costs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:9px}.cogs-performance-variances{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}.cogs-explainer{font-size:.76rem;color:#657786;line-height:1.35;margin-top:5px}@media(max-width:1100px){.cogs-performance-variances{grid-template-columns:repeat(3,minmax(0,1fr))}.cogs-top-actions{justify-content:flex-start}}@media(max-width:760px){.cogs-performance-costs,.cogs-performance-variances{grid-template-columns:1fr}.cogs-budget-control{width:100%;flex-wrap:wrap}}</style>
+.cogs-top-actions {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    align-items: center;
+    column-gap: 10px;
+    width: 100%;
+    margin-top: 18px;
+    margin-bottom: 18px;
+}
+
+.cogs-budget-control {
+    grid-column: 1;
+    justify-self: start;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 4px 9px;
+    background: #f8f9fa;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    box-sizing: border-box;
+}
+
+.cogs-budget-control label {
+    margin: 0;
+    font-size: .78rem;
+    white-space: nowrap;
+}
+
+.cogs-budget-control input {
+    width: 82px;
+    height: 32px;
+    padding: 6px 7px;
+}
+
+.cogs-budget-control span {
+    font-weight: 700;
+}
+
+.cogs-budget-control .action-btn {
+    height: 32px;
+    margin: 0;
+    padding: 0 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cogs-pdf-btn {
+    grid-column: 3;
+    justify-self: end;
+    height: 40px;
+    min-height: 40px;
+    padding: 0 16px;
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #6f42c1;
+    white-space: nowrap;
+    box-sizing: border-box;
+}
+
+.cogs-top-actions > .btn-submit {
+    grid-column: 4;
+    justify-self: end;
+    width: auto;
+    height: 40px;
+    min-height: 40px;
+    padding: 0 18px;
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    box-sizing: border-box;
+}
+
+.cogs-performance-costs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 9px;
+}
+
+.cogs-performance-variances {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.cogs-explainer {
+    font-size: .76rem;
+    color: #657786;
+    line-height: 1.35;
+    margin-top: 5px;
+}
+
+@media (max-width: 1100px) {
+    .cogs-performance-variances {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .cogs-top-actions {
+        grid-template-columns: auto 1fr auto auto;
+    }
+}
+
+@media (max-width: 760px) {
+    .cogs-top-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+        row-gap: 10px;
+    }
+
+    .cogs-budget-control {
+        width: 100%;
+    }
+
+    .cogs-performance-costs,
+    .cogs-performance-variances {
+        grid-template-columns: 1fr;
+    }
+}</style>
 
     <meta name="theme-color" content="#18bc9c">
     <meta name="application-name" content="Nova Recipe Builder">
