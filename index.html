@@ -187,6 +187,26 @@
 .checklist-category{border:1px solid var(--border-color);border-radius:5px;margin-bottom:8px;overflow:hidden;background:#fff}.checklist-category-header{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#f2f5f7;cursor:pointer;font-weight:700;color:var(--primary)}.checklist-category-header .category-caret{width:14px}.checklist-category-items{padding:7px 10px 3px 28px}.checklist-category.collapsed .checklist-category-items{display:none}.checklist-category.collapsed .category-caret{transform:rotate(-90deg)}
 .page-context-tools{display:flex;align-items:center;gap:8px;margin-left:auto}.quick-converter{display:flex;align-items:center;gap:5px;height:30px;white-space:nowrap}.quick-converter input{width:82px;height:30px;padding:4px 7px}.quick-converter select{width:92px;height:30px;padding:3px 5px}.quick-converter-output{min-width:92px;font-size:.82rem;font-weight:700;color:var(--primary)}.quick-converter-label{font-size:.78rem;font-weight:700;color:#657786}
 body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav.show,body.sidebar-collapsed .sidebar-panel.show{display:block!important;position:fixed;left:var(--sidebar-collapsed-width);width:230px;z-index:1200;box-shadow:4px 5px 14px rgba(0,0,0,.25);border-radius:0 6px 6px 0}body.sidebar-collapsed .sub-nav.show .nav-label,body.sidebar-collapsed .sidebar-panel.show .sidebar-label{display:inline!important}body.sidebar-collapsed .sub-nav.show .nav-btn{text-align:left;padding:12px 15px}body.sidebar-collapsed .sub-nav.show .nav-icon{width:24px;margin-right:8px}
+
+/* v19: compact variance and COGS dashboard */
+.variance-table-wrap{width:100%;overflow-x:auto;}
+#varianceTable{table-layout:fixed;min-width:1120px;font-size:.82rem;}
+#varianceTable th,#varianceTable td{padding:8px 7px;vertical-align:middle;overflow-wrap:anywhere;}
+#varianceTable th:nth-child(1){width:145px}#varianceTable th:nth-child(2){width:150px}
+#varianceTable th:nth-child(3),#varianceTable th:nth-child(4),#varianceTable th:nth-child(5){width:128px}
+#varianceTable th:nth-child(6),#varianceTable th:nth-child(7){width:145px}
+#varianceTable th:nth-child(8){width:85px}#varianceTable th:nth-child(9){width:92px}
+#varianceTable .variance-count-cell{white-space:normal!important;}
+#varianceTable .variance-count-cell input{width:56px!important;padding:5px 4px!important;font-size:.78rem;}
+.variance-breakdown{font-weight:600;line-height:1.25;white-space:normal;}
+.variance-total{font-size:.7rem;color:#7f8c8d;line-height:1.2;margin-top:3px;white-space:normal;}
+.cogs-dashboard-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
+.cogs-summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px;}
+.cogs-history-wrap{overflow-x:auto;}
+.cogs-history-wrap table{min-width:1100px;}
+.cogs-period-select{width:auto;min-width:240px;}
+@media(max-width:1100px){#varianceTable{min-width:1040px}.main-content{padding:20px}.tab-content{padding:20px}}
+
 </style>
 
     <meta name="theme-color" content="#18bc9c">
@@ -202,7 +222,8 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
         <div class="sidebar-brand"><h2>F&amp;B MANAGER</h2><button type="button" id="sidebarCollapseBtn" class="sidebar-collapse-btn" onclick="toggleSidebarCollapse()" title="Collapse navigation">◀</button></div>
         <div class="property-select-container"><label>Active Property</label><select id="globalPropertySelector" class="property-select"></select></div>
         <div class="sidebar-section-label">Operations</div>
-        <button class="nav-btn active" onclick="openTab(event,'menu-builder')" title="Menus"><span class="nav-icon">▤</span><span class="nav-label">Menus</span></button>
+        <button class="nav-btn active" onclick="openTab(event,'cogs-dashboard')" title="COGS Dashboard"><span class="nav-icon">◫</span><span class="nav-label">COGS Dashboard</span></button>
+        <button class="nav-btn" onclick="openTab(event,'menu-builder')" title="Menus"><span class="nav-icon">▤</span><span class="nav-label">Menus</span></button>
         <button class="nav-btn dropdown-toggle" onclick="toggleDropdown(event,'itemMenu')" title="Items"><span class="nav-icon">▦</span><span class="nav-label">Items</span></button>
         <div id="itemMenu" class="sub-nav">
             <button class="nav-btn" onclick="openTab(event,'items')"><span class="nav-icon">•</span><span class="nav-label">Item Master</span></button>
@@ -233,7 +254,25 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
     <div class="main-content">
         <div class="page-context-bar"><div id="pageContextTitle" class="page-context-title">Menus</div><div class="page-context-tools"><div class="quick-converter"><span class="quick-converter-label">Convert</span><input type="number" id="quickConvertQty" step="any" placeholder="Amount" oninput="runQuickConversion()"><select id="quickConvertFrom" onchange="syncQuickConversionUnits();runQuickConversion()"></select><span>=</span><select id="quickConvertTo" onchange="runQuickConversion()"></select><span id="quickConvertOutput" class="quick-converter-output">—</span></div><div class="page-context-property">Active Property: <strong class="display-property-name"></strong></div></div></div>
         
-        <div id="menu-builder" class="tab-content active">
+        <div id="cogs-dashboard" class="tab-content active">
+            <div class="cogs-dashboard-head">
+                <div><h2 style="margin-bottom:4px;">COGS Dashboard (<span class="display-property-name"></span>)</h2><p style="margin:0;color:#657786;">Compare monthly hotel-reported food cost with the saved theoretical menu snapshot.</p></div>
+                <button type="button" class="btn-submit" style="width:auto;padding:9px 15px;background:var(--info);" onclick="openMonthlyFoodCostModal()">+ Add Monthly Food Cost</button>
+            </div>
+            <div class="form-section">
+                <div style="display:flex;justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;margin-bottom:15px;">
+                    <div class="form-group" style="margin:0;"><label>Selected Reporting Period</label><select id="cogsPeriodSelector" class="cogs-period-select" onchange="selectCogsPeriod(this.value)"></select></div>
+                    <div id="cogsSelectedActions"></div>
+                </div>
+                <div id="cogsDashboardSummary"></div>
+            </div>
+            <div class="form-section">
+                <h3>Monthly Food Cost History</h3>
+                <p style="color:#657786;font-size:.85rem;">All saved periods for the active property. Historical theoretical values remain fixed as snapshots.</p>
+                <div id="cogsDashboardHistory" class="cogs-history-wrap"></div>
+            </div>
+        </div>
+        <div id="menu-builder" class="tab-content">
             <h2>Menus</h2>
             <p>Select your property from the sidebar. Build property-specific menus, categories, sales counts, and theoretical food cost.</p>
 
@@ -271,13 +310,9 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
                     </div>
                 </div>
             </div>
-            </div></div>
 
             <div class="form-section">
-                <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
-                    <h3>Menus for <span class="display-property-name"></span></h3>
-                    <button type="button" class="action-btn" style="background:var(--info);padding:8px 12px;" onclick="openMonthlyFoodCostModal()">+ Add Monthly Food Cost</button>
-                </div>
+                <h3>Menus for <span class="display-property-name"></span></h3>
 				<div id="propertyMenuSummary"
 				     style="
 				        display:grid;
@@ -303,9 +338,9 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
                         <tr><td colspan="7" style="text-align:center; color:#777;">No menus created for this property yet.</td></tr>
                     </tbody>
                 </table>
-                <div id="monthlyFoodCostSummary"></div>
             </div>
 
+            </div></div>
             <div class="form-section">
                 <h3>Selected Menu Detail
                     <button type="button" class="btn-submit" onclick="printMenuReport()" style="width:auto; padding: 6px 14px; font-size:0.85rem; margin-left:15px;">🖨 Print Report</button>
@@ -418,17 +453,6 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
             </div>
 
             <div class="form-section">
-                <h3>Custom Recipe Units</h3>
-                <p style="font-size:0.85rem;color:#666;margin-bottom:12px;">Global item-specific count labels used in custom conversions and recipes (for example Slice / Slices). These units are intentionally excluded from the general Quick Converter.</p>
-                <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;margin-bottom:15px;align-items:end;">
-                    <div><label>Singular</label><input type="text" id="newCustomUnitSingular" placeholder="e.g., Slice"></div>
-                    <div><label>Plural</label><input type="text" id="newCustomUnitPlural" placeholder="e.g., Slices"></div>
-                    <button class="btn-submit" style="width:auto" onclick="addCustomRecipeUnit()">Add Unit</button>
-                </div>
-                <table style="margin-bottom:0"><thead><tr><th>Singular</th><th>Plural</th><th>Actions</th></tr></thead><tbody id="customRecipeUnitTableBody"></tbody></table>
-            </div>
-
-            <div class="form-section">
                 <h3>Selective Recipe Copy</h3>
                 <p style="font-size: 0.8rem; color: #666; margin-bottom: 15px;">Choose specific recipes from one property and push them to multiple other properties simultaneously.</p>
 
@@ -484,7 +508,7 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
                 </div>
                 <div id="varianceLastCalculated" style="text-align:right;font-size:0.78rem;color:#7f8c8d;margin-top:6px;">Not yet calculated for this property.</div>
             </div>
-            <table>
+            <div class="variance-table-wrap"><table id="varianceTable">
                 <thead>
                     <tr>
                         <th>Item</th>
@@ -1177,17 +1201,6 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
         </div>
     </div>
 
-    <div id="monthlyFoodCostModal" class="modal">
-        <div class="modal-content" style="width:650px;max-width:90%;">
-            <div class="modal-header"><h2>Monthly Food Cost</h2><span class="close" onclick="closeModal('monthlyFoodCostModal')">&times;</span></div>
-            <input type="hidden" id="monthlyFoodCostEditId">
-            <div class="grid-2"><div class="form-group"><label>Period Start</label><input type="date" id="monthlyFoodCostStart"></div><div class="form-group"><label>Period End</label><input type="date" id="monthlyFoodCostEnd"></div></div>
-            <div class="grid-3"><div class="form-group"><label>Reported Food Sales ($)</label><input type="number" step="0.01" min="0" id="monthlyFoodSales" oninput="syncMonthlyFoodCostInputs('sales')"></div><div class="form-group"><label>Reported Food Cost ($)</label><input type="number" step="0.01" min="0" id="monthlyFoodCost" oninput="syncMonthlyFoodCostInputs('cost')"></div><div class="form-group"><label>Reported Food Cost (%)</label><input type="number" step="0.01" min="0" id="monthlyFoodCostPct" oninput="syncMonthlyFoodCostInputs('pct')"></div></div>
-            <div id="monthlyFoodCostCalcNote" style="font-size:.8rem;color:#657786;margin:-5px 0 12px;"></div>
-            <div class="form-group"><label>Notes (optional)</label><input type="text" id="monthlyFoodCostNotes" placeholder="Accounting notes, adjustments, or context"></div>
-            <div class="btn-group"><button type="button" class="btn-submit" onclick="saveMonthlyFoodCostRecord()">Save Monthly Result</button><button type="button" class="btn-cancel" style="display:block" onclick="closeModal('monthlyFoodCostModal')">Cancel</button></div>
-        </div>
-    </div>
     <div id="copyItemPropertyModal" class="modal"><div class="modal-content small"><div class="modal-header"><h2>Copy Item to Property</h2><span class="close" onclick="closeModal('copyItemPropertyModal')">&times;</span></div><input type="hidden" id="copyItemSourceId"><div class="form-group"><label>Destination Property</label><select id="copyItemTargetProperty"></select></div><button class="btn-submit" onclick="executeCopyItemToProperty()">Create Independent Copy</button></div></div>
     <div id="recipeItemMappingModal" class="modal"><div class="modal-content" style="width:70%;max-width:850px"><div class="modal-header"><h2>Map Items for Destination Property</h2><span class="close" onclick="cancelRecipeCopyMapping()">&times;</span></div><p id="recipeMappingIntro"></p><div id="recipeMappingRows"></div><button class="btn-submit" onclick="completeRecipeCopyMapping()">Copy Recipe</button></div></div>
     <script src="app.js"></script>
