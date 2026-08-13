@@ -6080,8 +6080,15 @@ function visibleAppModals(){
     return [...document.querySelectorAll('.modal')].filter(m => getComputedStyle(m).display !== 'none');
 }
 function uiModalTitle(modal){ return modal?.querySelector('.modal-header h2')?.textContent?.trim() || 'window'; }
+const DIRTY_TRACKED_MODAL_IDS = new Set([
+    'editPrepRecipeModal',
+    'editMenuItemModal',
+    'editItemModal',
+    'monthlyFoodCostModal'
+]);
+function isDirtyTrackedModal(modal){ return !!modal && DIRTY_TRACKED_MODAL_IDS.has(modal.id); }
 function setUiModalDirty(modal, dirty=true){
-    if(!modal || getComputedStyle(modal).display==='none') return;
+    if(!modal || getComputedStyle(modal).display==='none' || !isDirtyTrackedModal(modal)) return;
     activeUiModal = modal;
     activeUiModalDirty = !!dirty;
     modal.dataset.uiDirty = dirty ? 'true' : 'false';
@@ -6108,7 +6115,12 @@ function prepareOpenedModal(modal){
         const line=document.createElement('div');line.className='modal-context-line';line.textContent=`Active Property: ${currentProperty || 'Not selected'}`;
         header.querySelector('h2')?.insertAdjacentElement('afterend',line);
     }
-    setUiModalDirty(modal,false);
+    if(isDirtyTrackedModal(modal)) {
+        setUiModalDirty(modal,false);
+    } else {
+        modal.dataset.uiDirty='false';
+        modal.querySelector('.modal-unsaved-indicator')?.remove();
+    }
     setTimeout(()=>{activeUiModalOpening=false;},40);
     updateModalBodyLock();
 }
