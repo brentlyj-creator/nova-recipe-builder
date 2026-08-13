@@ -4714,6 +4714,7 @@ function downloadPriceUpdateReviewCsv() {
             saveAllDataToBrowser(false);
             togglePortionWeight();
             populatePrepUsageUnit();
+            closeEditPrepModal();
             saveAllDataToBrowser(false);
         });
 
@@ -4761,8 +4762,52 @@ function downloadPriceUpdateReviewCsv() {
             });
         }
 
+        let prepEditFormPlaceholder = null;
+
+        function ensureEditPrepModal() {
+            if (document.getElementById('editPrepRecipeModal')) return;
+            const modal = document.createElement('div');
+            modal.id = 'editPrepRecipeModal';
+            modal.className = 'modal';
+            modal.innerHTML = `
+                <div class="modal-content" style="width:85%;max-width:1200px;">
+                    <div class="modal-header">
+                        <h2>Edit Prep Recipe</h2>
+                        <span class="close" onclick="cancelPrepEdit()">&times;</span>
+                    </div>
+                    <div id="editPrepRecipeModalBody"></div>
+                </div>`;
+            document.body.appendChild(modal);
+        }
+
+        function openEditPrepModal() {
+            ensureEditPrepModal();
+            const form = document.getElementById('prepForm');
+            const section = form?.closest('.form-section');
+            const body = document.getElementById('editPrepRecipeModalBody');
+            if (!form || !section || !body) return;
+
+            if (!prepEditFormPlaceholder) {
+                prepEditFormPlaceholder = document.createComment('prep edit form home');
+                section.parentNode.insertBefore(prepEditFormPlaceholder, section);
+            }
+            body.appendChild(section);
+            document.getElementById('editPrepRecipeModal').style.display = 'block';
+            setTimeout(() => document.getElementById('prepName')?.focus(), 0);
+        }
+
+        function closeEditPrepModal() {
+            const modal = document.getElementById('editPrepRecipeModal');
+            const section = document.getElementById('prepForm')?.closest('.form-section');
+            if (section && prepEditFormPlaceholder?.parentNode) {
+                prepEditFormPlaceholder.parentNode.insertBefore(section, prepEditFormPlaceholder);
+                prepEditFormPlaceholder.remove();
+                prepEditFormPlaceholder = null;
+            }
+            if (modal) modal.style.display = 'none';
+        }
+
         function editPrep(id) {
-            const pp=document.getElementById('prepFormPanel');if(pp&&!pp.classList.contains('show'))toggleWorkflowPanel('prepFormPanel',pp.previousElementSibling);
             const prep = prepDatabase.find(p => p.id === id);
             if(!prep) return;
             document.getElementById('editPrepId').value = prep.id;
@@ -4782,8 +4827,8 @@ function downloadPriceUpdateReviewCsv() {
             }
             currentPrepIngredients = [...prep.ingredients];
             updatePrepIngredientTable();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-			document.getElementById('prepCancelBtn').style.display = 'block';
+            document.getElementById('prepCancelBtn').style.display = 'block';
+            openEditPrepModal();
  }
 		function cancelPrepEdit() {
 		    document.getElementById('prepForm').reset();
@@ -4794,6 +4839,7 @@ function downloadPriceUpdateReviewCsv() {
 		    document.getElementById('prepCancelBtn').style.display = 'none';
 		    togglePortionWeight();
 		    populatePrepUsageUnit();
+            closeEditPrepModal();
 }
         function deletePrep(id) {
             const prep = prepDatabase.find(p => p.id === id);
@@ -5192,7 +5238,8 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
         window.onclick = function(event) { 
             if (event.target == document.getElementById('ingredientModal')) closeModal('ingredientModal'); 
             if (event.target == document.getElementById('duplicateModal')) closeModal('duplicateModal'); 
-            if (event.target == document.getElementById('editMenuItemModal')) cancelEditMenuModal(); 
+            if (event.target == document.getElementById('editMenuItemModal')) cancelEditMenuModal();
+            if (event.target == document.getElementById('editPrepRecipeModal')) cancelPrepEdit(); 
         }
         
         document.getElementById('modalSearch').addEventListener('keyup', debounce(function() { renderModalTable(this.value.toLowerCase()); }, 200));
