@@ -4811,6 +4811,7 @@ function downloadPriceUpdateReviewCsv() {
             const prep = prepDatabase.find(p => p.id === id);
             if(!prep) return;
             document.getElementById('editPrepId').value = prep.id;
+            const prepModalTitle=document.querySelector('#editPrepRecipeModal .modal-header h2');if(prepModalTitle)prepModalTitle.textContent=`Edit Prep Recipe — ${prep.name}`;
             document.getElementById('prepName').value = prep.name;
             if (document.getElementById('prepCategory')) document.getElementById('prepCategory').value = prep.category || '';
             if (document.getElementById('prepIncludeInExport')) document.getElementById('prepIncludeInExport').checked = prep.includeInExport !== false;
@@ -4992,7 +4993,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                         <h2>Edit Menu Item Recipe</h2>
                         <span class="close" onclick="cancelEditMenuModal()">&times;</span>
                     </div>
-                    <input type="hidden" id="editMenuModalId" value="">
+                    <div class="modal-editor-body"><input type="hidden" id="editMenuModalId" value="">
                     <div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                         <div class="form-group">
                             <label>Menu Item Name</label>
@@ -5062,7 +5063,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
                     <div class="btn-group" style="margin-top: 15px;">
                         <button type="button" class="btn-submit" onclick="saveMenuFromModal()">Save Changes</button>
                         <button type="button" class="btn-cancel" style="display:block;" onclick="cancelEditMenuModal()">Cancel</button>
-                    </div>
+                    </div></div>
                 </div>
             `;
             document.body.appendChild(modal);
@@ -5137,6 +5138,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
             ensureEditMenuItemModal();
             populateEditMenuModalCategoryDropdown(menu.category || '');
             document.getElementById('editMenuModalId').value = menu.id;
+            const menuModalTitle=document.querySelector('#editMenuItemModal .modal-header h2');if(menuModalTitle)menuModalTitle.textContent=`Edit Menu Item — ${menu.name}`;
             document.getElementById('editMenuModalName').value = menu.name || '';
             document.getElementById('editMenuModalPrice').value = menu.targetPrice || 0;
             document.getElementById('editMenuModalCookTime').value = menu.cookTime || '';
@@ -6066,3 +6068,125 @@ function generateMenuItemPptx(items) {
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',restoreLayoutPreference);else restoreLayoutPreference();
 
 ;['prepSteps'].forEach(id=>document.getElementById(id)?.addEventListener('input',debouncedPrepFit));['menuSteps','menuTipsNotes'].forEach(id=>document.getElementById(id)?.addEventListener('input',debouncedMenuFit));setTimeout(()=>{updateEditorExportFit('prep');updateEditorExportFit('menu');scheduleFitCacheBuild();},100);
+
+
+// --- v22 UI CONSISTENCY AND SAFETY REFRESH ---
+const UI_FILTER_STATE_KEY = 'fb_recipe_ui_filter_state_v22';
+let activeUiModal = null;
+let activeUiModalDirty = false;
+let activeUiModalOpening = false;
+
+function visibleAppModals(){
+    return [...document.querySelectorAll('.modal')].filter(m => getComputedStyle(m).display !== 'none');
+}
+function uiModalTitle(modal){ return modal?.querySelector('.modal-header h2')?.textContent?.trim() || 'window'; }
+function setUiModalDirty(modal, dirty=true){
+    if(!modal || getComputedStyle(modal).display==='none') return;
+    activeUiModal = modal;
+    activeUiModalDirty = !!dirty;
+    modal.dataset.uiDirty = dirty ? 'true' : 'false';
+    let indicator=modal.querySelector('.modal-unsaved-indicator');
+    if(!indicator){
+        indicator=document.createElement('span');indicator.className='modal-unsaved-indicator';
+        modal.querySelector('.modal-header')?.insertBefore(indicator,modal.querySelector('.close'));
+    }
+    if(indicator){indicator.textContent=dirty?'Unsaved changes':'No unsaved changes';indicator.classList.toggle('dirty',!!dirty);}
+}
+function updateModalBodyLock(){
+    const open=visibleAppModals();
+    document.body.classList.toggle('modal-open',open.length>0);
+    if(!open.length){activeUiModal=null;activeUiModalDirty=false;}
+}
+function prepareOpenedModal(modal){
+    if(!modal) return;
+    activeUiModalOpening=true;
+    activeUiModal=modal;
+    modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');
+    const close=modal.querySelector('.close');if(close){close.tabIndex=0;close.setAttribute('role','button');close.setAttribute('aria-label','Close window');}
+    const header=modal.querySelector('.modal-header');
+    if(header && !header.querySelector('.modal-context-line') && ['editPrepRecipeModal','editMenuItemModal','editItemModal','monthlyFoodCostModal'].includes(modal.id)){
+        const line=document.createElement('div');line.className='modal-context-line';line.textContent=`Active Property: ${currentProperty || 'Not selected'}`;
+        header.querySelector('h2')?.insertAdjacentElement('afterend',line);
+    }
+    setUiModalDirty(modal,false);
+    setTimeout(()=>{activeUiModalOpening=false;},40);
+    updateModalBodyLock();
+}
+function attemptUiModalClose(event){
+    const control=event.target.closest('.close,.btn-cancel');
+    if(!control) return;
+    const modal=control.closest('.modal');
+    if(!modal || modal.dataset.uiDirty!=='true') return;
+    if(!window.confirm(`Discard unsaved changes in ${uiModalTitle(modal)}?`)){
+        event.preventDefault();event.stopImmediatePropagation();
+    }
+}
+document.addEventListener('click',attemptUiModalClose,true);
+document.addEventListener('keydown',e=>{
+    if((e.key==='Enter'||e.key===' ') && e.target.classList?.contains('close')){e.preventDefault();e.target.click();}
+});
+document.addEventListener('input',e=>{
+    const modal=e.target.closest?.('.modal');if(modal&&!activeUiModalOpening)setUiModalDirty(modal,true);
+});
+document.addEventListener('change',e=>{
+    const modal=e.target.closest?.('.modal');if(modal&&!activeUiModalOpening)setUiModalDirty(modal,true);
+});
+const uiModalObserver=new MutationObserver(records=>{
+    records.forEach(r=>{
+        if(r.type==='attributes'&&r.target.classList?.contains('modal')){
+            const shown=getComputedStyle(r.target).display!=='none';
+            if(shown)prepareOpenedModal(r.target);else updateModalBodyLock();
+        }
+        r.addedNodes.forEach?.(node=>{
+            if(node.nodeType!==1)return;
+            if(node.classList?.contains('modal')&&getComputedStyle(node).display!=='none')prepareOpenedModal(node);
+            node.querySelectorAll?.('.modal').forEach(m=>{if(getComputedStyle(m).display!=='none')prepareOpenedModal(m);});
+        });
+    });
+});
+uiModalObserver.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['style','class']});
+
+function validationSummaryFor(form){
+    let box=form.querySelector(':scope > .validation-summary');
+    if(!box){box=document.createElement('div');box.className='validation-summary';form.prepend(box);}
+    return box;
+}
+function validateRecipeForm(form,type){
+    const prep=type==='prep';
+    const fields=prep?
+      [{id:'prepName',label:'Recipe name'},{id:'prepYield',label:'Target yield'},{id:'prepUnit',label:'Yield unit'}]:
+      [{id:'menuItemName',label:'Menu item name'},{id:'menuCategory',label:'Menu category'},{id:'menuPrice',label:'Target selling price'}];
+    const issues=[];
+    form.querySelectorAll('.field-invalid').forEach(x=>x.classList.remove('field-invalid'));
+    fields.forEach(f=>{const el=document.getElementById(f.id);if(!el||String(el.value||'').trim()===''||(el.type==='number'&&parseFloat(el.value)<0)){issues.push(`${f.label} is required.`);el?.classList.add('field-invalid');}});
+    const ingredients=prep?currentPrepIngredients:currentMenuIngredients;
+    if(!ingredients.length)issues.push('Add at least one ingredient.');
+    if(ingredients.some(i=>!Number.isFinite(parseFloat(i.qty))||parseFloat(i.qty)===0))issues.push('Every ingredient must have a non-zero quantity.');
+    const steps=document.getElementById(prep?'prepSteps':'menuSteps');
+    if(!richTextToPlainText(steps?.innerHTML||''))issues.push('Add preparation steps.');
+    const box=validationSummaryFor(form);
+    if(issues.length){box.innerHTML='<strong>Please review:</strong><ul style="margin:6px 0 0 18px">'+issues.map(x=>`<li>${escapeHtml(x)}</li>`).join('')+'</ul>';box.classList.add('show');box.scrollIntoView({behavior:'smooth',block:'nearest'});return false;}
+    box.classList.remove('show');box.innerHTML='';return true;
+}
+document.getElementById('prepForm')?.addEventListener('submit',e=>{if(!validateRecipeForm(e.currentTarget,'prep')){e.preventDefault();e.stopImmediatePropagation();}},true);
+document.getElementById('menuForm')?.addEventListener('submit',e=>{if(!validateRecipeForm(e.currentTarget,'menu')){e.preventDefault();e.stopImmediatePropagation();}},true);
+
+function persistUiControls(){
+    let state={};try{state=JSON.parse(localStorage.getItem(UI_FILTER_STATE_KEY)||'{}');}catch(e){}
+    const ids=['searchInput','filterItemCategory','filterItemSupplier','filterItemStatus','searchPrepInput','filterPrepCategory','sortPrepCost','searchMenuInput','filterMenuCategory','sortMenuCost','varianceReportingGroupFilter','varianceSearchInput','varianceSortMode'];
+    ids.forEach(id=>{
+        const el=document.getElementById(id);if(!el)return;
+        if(state[id]!==undefined && [...(el.options||[])].some?.(o=>o.value===state[id])!==false)el.value=state[id];
+        const save=()=>{let next={};try{next=JSON.parse(localStorage.getItem(UI_FILTER_STATE_KEY)||'{}')}catch(e){}next[id]=el.value;localStorage.setItem(UI_FILTER_STATE_KEY,JSON.stringify(next));};
+        el.addEventListener(el.tagName==='INPUT'?'input':'change',save);
+    });
+}
+function applyUiPolish(){
+    document.querySelectorAll('.tab-content > .table-tools').forEach(x=>x.classList.add('sticky-table-tools'));
+    document.querySelectorAll('.modal .btn-group').forEach(group=>{
+        const save=group.querySelector('.btn-submit');if(save&&group.closest('.modal'))group.classList.add('modal-save-bar');
+    });
+    document.querySelectorAll('.modal[style*="display: block"]').forEach(prepareOpenedModal);
+    persistUiControls();
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',applyUiPolish);else setTimeout(applyUiPolish,0);
