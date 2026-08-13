@@ -350,6 +350,34 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
         body.modal-open { overflow: hidden; }
         .modal { overscroll-behavior: contain; padding: 18px; box-sizing: border-box; }
         .modal-content { margin: 2vh auto; max-height: 94vh; padding: 0; display:flex; flex-direction:column; overflow:hidden; }
+
+        /* Recipe editor windows stay fixed; only their centre content scrolls. */
+        #editMenuItemModal,
+        #editPrepRecipeModal {
+            overflow: hidden !important;
+        }
+        #editMenuItemModal .modal-content,
+        #editPrepRecipeModal .modal-content {
+            height: calc(100vh - 36px);
+            max-height: calc(100vh - 36px);
+            margin: 0 auto !important;
+            overflow: hidden !important;
+        }
+        #editMenuItemModal .modal-header,
+        #editPrepRecipeModal .modal-header {
+            position: relative;
+            top: auto;
+            flex: 0 0 auto;
+        }
+        #editMenuItemModal .modal-editor-body,
+        #editPrepRecipeModal #editPrepRecipeModalBody {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-x: hidden;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
+        }
         .modal-content.small { margin: 8vh auto; }
         .modal-header { position:sticky; top:0; z-index:80; flex:0 0 auto; margin:0; padding:17px 22px; background:#fff; border-bottom:1px solid var(--border-color); box-shadow:0 2px 7px rgba(0,0,0,.06); }
         .modal-header h2 { margin:0; }
@@ -359,7 +387,7 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
         #editPrepRecipeModalBody, #editMenuItemModal .modal-editor-body { overflow-y:auto; min-height:0; margin:0; padding:18px 22px 0; }
         #editPrepRecipeModalBody .form-section { margin:0; padding:0; border:0; background:#fff; }
         #editPrepRecipeModalBody .btn-group:last-child,
-        #editMenuItemModal .modal-save-bar { position:sticky; bottom:0; z-index:75; margin:20px -22px 0; padding:13px 22px; background:#fff; border-top:1px solid var(--border-color); box-shadow:0 -3px 9px rgba(0,0,0,.07); }
+        #editMenuItemModal .modal-save-bar { position:sticky; bottom:0; z-index:75; margin:20px -22px 0; padding:13px 22px; background:#fff; border-top:1px solid var(--border-color); box-shadow:0 -3px 9px rgba(0,0,0,.07); flex:0 0 auto; }
         .modal-context-line { font-size:.8rem; color:#657786; font-weight:600; margin-top:3px; }
         .modal-unsaved-indicator { margin-left:auto; margin-right:12px; font-size:.76rem; color:#657786; font-weight:700; }
         .modal-unsaved-indicator.dirty { color:#b36b00; }
