@@ -5235,12 +5235,9 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
 		    const modal = document.getElementById(modalId);
 		    if (modal) modal.style.display = 'none';
 }        
-        window.onclick = function(event) { 
-            if (event.target == document.getElementById('ingredientModal')) closeModal('ingredientModal'); 
-            if (event.target == document.getElementById('duplicateModal')) closeModal('duplicateModal'); 
-            if (event.target == document.getElementById('editMenuItemModal')) cancelEditMenuModal();
-            if (event.target == document.getElementById('editPrepRecipeModal')) cancelPrepEdit(); 
-        }
+        // Modal backdrops are intentionally non-dismissible.
+        // Pop-up windows remain open until the user chooses an explicit
+        // Save, Cancel, Close, or X control inside the window.
         
         document.getElementById('modalSearch').addEventListener('keyup', debounce(function() { renderModalTable(this.value.toLowerCase()); }, 200));
 
@@ -5809,11 +5806,8 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
             document.getElementById('viewRecipeModal').style.display = 'block';
         }
 
-        window.addEventListener('click', function(e) {
-            if (e.target === document.getElementById('viewRecipeModal')) {
-                closeModal('viewRecipeModal');
-            }
-        });
+        // Do not close the recipe-view window when its backdrop is clicked.
+        // It must be closed with the explicit X control.
 
         
         document.addEventListener('input', function(e) {
