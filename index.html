@@ -345,7 +345,58 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
     .cogs-performance-variances {
         grid-template-columns: 1fr;
     }
-}</style>
+}
+        /* v22 UI consistency and safety refresh */
+        body.modal-open { overflow: hidden; }
+        .modal { overscroll-behavior: contain; padding: 18px; box-sizing: border-box; }
+        .modal-content { margin: 2vh auto; max-height: 94vh; padding: 0; display:flex; flex-direction:column; overflow:hidden; }
+        .modal-content.small { margin: 8vh auto; }
+        .modal-header { position:sticky; top:0; z-index:80; flex:0 0 auto; margin:0; padding:17px 22px; background:#fff; border-bottom:1px solid var(--border-color); box-shadow:0 2px 7px rgba(0,0,0,.06); }
+        .modal-header h2 { margin:0; }
+        .modal-content > :not(.modal-header) { margin-left:22px; margin-right:22px; }
+        .modal-content > :last-child { margin-bottom:22px; }
+        .modal-content > .modal-header + * { margin-top:20px; }
+        #editPrepRecipeModalBody, #editMenuItemModal .modal-editor-body { overflow-y:auto; min-height:0; margin:0; padding:18px 22px 0; }
+        #editPrepRecipeModalBody .form-section { margin:0; padding:0; border:0; background:#fff; }
+        #editPrepRecipeModalBody .btn-group:last-child,
+        #editMenuItemModal .modal-save-bar { position:sticky; bottom:0; z-index:75; margin:20px -22px 0; padding:13px 22px; background:#fff; border-top:1px solid var(--border-color); box-shadow:0 -3px 9px rgba(0,0,0,.07); }
+        .modal-context-line { font-size:.8rem; color:#657786; font-weight:600; margin-top:3px; }
+        .modal-unsaved-indicator { margin-left:auto; margin-right:12px; font-size:.76rem; color:#657786; font-weight:700; }
+        .modal-unsaved-indicator.dirty { color:#b36b00; }
+        .btn-cancel { background:#7f8c8d; }
+        .btn-cancel:hover { background:#697678; }
+        .validation-summary { display:none; background:#fdecea; color:#a61b13; border:1px solid #efaaa3; border-radius:6px; padding:11px 13px; margin:0 0 14px; line-height:1.45; }
+        .validation-summary.show { display:block; }
+        .field-invalid { border-color:#e74c3c!important; box-shadow:0 0 0 3px rgba(231,76,60,.13)!important; }
+        .sticky-table-tools { position:sticky; top:44px; z-index:35; background:#fff; padding:10px 0; border-bottom:1px solid var(--border-color); box-shadow:0 3px 5px rgba(0,0,0,.04); }
+        .action-btn, .mini-action-btn { min-height:29px; }
+        td:last-child { white-space:normal; }
+        .recipe-row-clickable td:first-child strong:first-child { color:#234; }
+        .recipe-row-clickable:hover td:first-child strong:first-child { color:#117864; text-decoration:underline; }
+        .close { line-height:1; border-radius:4px; padding:2px 6px; }
+        .close:focus-visible { outline:3px solid rgba(24,188,156,.3); color:#000; }
+        @media(max-width:1100px){
+            .modal-content { width:94%!important; max-width:94%!important; }
+            .grid-4 { grid-template-columns:repeat(2,minmax(0,1fr)); }
+            #editMenuItemModal .grid-4 { grid-template-columns:repeat(2,minmax(0,1fr)); }
+        }
+        @media(max-width:760px){
+            .main-content { padding:16px; }
+            .page-context-bar { margin:-16px -16px 16px; flex-wrap:wrap; }
+            .grid-2,.grid-3,.grid-4 { grid-template-columns:1fr!important; }
+            .modal { padding:4px; }
+            .modal-content,.modal-content.small { width:98%!important; max-width:98%!important; margin:1vh auto; max-height:98vh; }
+            .modal-header { padding:13px 14px; }
+            #editPrepRecipeModalBody, #editMenuItemModal .modal-editor-body { padding:14px 14px 0; }
+            #editPrepRecipeModalBody .btn-group:last-child,#editMenuItemModal .modal-save-bar { margin-left:-14px; margin-right:-14px; padding:11px 14px; }
+            .table-tools,.filter-controls { align-items:stretch!important; }
+            .search-bar,.filter-controls select { width:100%!important; min-width:0!important; }
+            .quick-converter { display:none; }
+            table { min-width:720px; }
+            .form-section { overflow-x:auto; }
+        }
+
+</style>
 
     <meta name="theme-color" content="#18bc9c">
     <meta name="application-name" content="Nova Recipe Builder">
