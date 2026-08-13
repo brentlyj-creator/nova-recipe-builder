@@ -4792,6 +4792,7 @@ function downloadPriceUpdateReviewCsv() {
                 section.parentNode.insertBefore(prepEditFormPlaceholder, section);
             }
             body.appendChild(section);
+            normalizeRecipeEditorLayout(document.getElementById('editPrepRecipeModal'));
             document.getElementById('editPrepRecipeModal').style.display = 'block';
             setTimeout(() => document.getElementById('prepName')?.focus(), 0);
         }
@@ -5146,6 +5147,7 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
             updateEditMenuModalIngredientTable();
             document.getElementById('editMenuModalSteps').innerHTML = menu.steps || '';
             document.getElementById('editMenuModalTipsNotes').innerHTML = menu.tipsNotes || '';
+            normalizeRecipeEditorLayout(document.getElementById('editMenuItemModal'));
             document.getElementById('editMenuItemModal').style.display = 'block';
             updateEditMenuModalExportFit();
         }
@@ -6104,8 +6106,30 @@ function updateModalBodyLock(){
     document.body.classList.toggle('modal-open',open.length>0);
     if(!open.length){activeUiModal=null;activeUiModalDirty=false;}
 }
+function normalizeRecipeEditorLayout(modal){
+    if(!modal || !['editPrepRecipeModal','editMenuItemModal'].includes(modal.id)) return;
+    const content=modal.querySelector(':scope > .modal-content');
+    const body=modal.id==='editPrepRecipeModal'
+        ? modal.querySelector('#editPrepRecipeModalBody')
+        : modal.querySelector('.modal-editor-body');
+    if(!content || !body) return;
+
+    // The action bar must be a sibling of the scrolling body, not a child of it.
+    let footer=content.querySelector(':scope > .recipe-modal-footer');
+    if(!footer){
+        const candidate=[...body.querySelectorAll('.btn-group')].reverse().find(group=>group.querySelector('.btn-submit'));
+        if(candidate){
+            footer=candidate;
+            footer.classList.add('recipe-modal-footer');
+            const prepSubmit=footer.querySelector('button[type="submit"]');
+            if(prepSubmit && modal.id==='editPrepRecipeModal') prepSubmit.setAttribute('form','prepForm');
+            content.appendChild(footer);
+        }
+    }
+}
 function prepareOpenedModal(modal){
     if(!modal) return;
+    normalizeRecipeEditorLayout(modal);
     activeUiModalOpening=true;
     activeUiModal=modal;
     modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');
