@@ -386,8 +386,18 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
         .modal-content > .modal-header + * { margin-top:20px; }
         #editPrepRecipeModalBody, #editMenuItemModal .modal-editor-body { overflow-y:auto; min-height:0; margin:0; padding:18px 22px 0; }
         #editPrepRecipeModalBody .form-section { margin:0; padding:0; border:0; background:#fff; }
-        #editPrepRecipeModalBody .btn-group:last-child,
-        #editMenuItemModal .modal-save-bar { position:sticky; bottom:0; z-index:75; margin:20px -22px 0; padding:13px 22px; background:#fff; border-top:1px solid var(--border-color); box-shadow:0 -3px 9px rgba(0,0,0,.07); flex:0 0 auto; }
+        #editPrepRecipeModal .recipe-modal-footer,
+        #editMenuItemModal .recipe-modal-footer {
+            position:relative;
+            z-index:75;
+            flex:0 0 auto;
+            width:auto;
+            margin:0 !important;
+            padding:13px 22px;
+            background:#fff;
+            border-top:1px solid var(--border-color);
+            box-shadow:0 -3px 9px rgba(0,0,0,.07);
+        }
         .modal-context-line { font-size:.8rem; color:#657786; font-weight:600; margin-top:3px; }
         .modal-unsaved-indicator { margin-left:auto; margin-right:12px; font-size:.76rem; color:#657786; font-weight:700; }
         .modal-unsaved-indicator.dirty { color:#b36b00; }
@@ -416,7 +426,7 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
             .modal-content,.modal-content.small { width:98%!important; max-width:98%!important; margin:1vh auto; max-height:98vh; }
             .modal-header { padding:13px 14px; }
             #editPrepRecipeModalBody, #editMenuItemModal .modal-editor-body { padding:14px 14px 0; }
-            #editPrepRecipeModalBody .btn-group:last-child,#editMenuItemModal .modal-save-bar { margin-left:-14px; margin-right:-14px; padding:11px 14px; }
+            #editPrepRecipeModal .recipe-modal-footer,#editMenuItemModal .recipe-modal-footer { padding:11px 14px; }
             .table-tools,.filter-controls { align-items:stretch!important; }
             .search-bar,.filter-controls select { width:100%!important; min-width:0!important; }
             .quick-converter { display:none; }
