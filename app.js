@@ -5132,7 +5132,6 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
         }
 
         function editMenu(id) {
-            const mp=document.getElementById('menuItemFormPanel');if(mp&&!mp.classList.contains('show'))toggleWorkflowPanel('menuItemFormPanel',mp.previousElementSibling);
             const menu = menuDatabase.find(m => m.id === id);
             if (!menu) return;
             ensureEditMenuItemModal();
