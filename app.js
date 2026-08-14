@@ -6464,3 +6464,65 @@ getLiveIngredientTotalCost=function(ing,seen){return ing?.type==='section'?0:v26
 // Final refresh hooks.
 const v26RefreshAllUI=refreshAllUI;
 refreshAllUI=function(){v26RefreshAllUI();fillVariancePeriodSelector();renderPropertyTable();};
+
+// --- v27 SHARED REPORTING-PERIOD WORKSPACE + CLARITY ---
+var varianceInventoryImportHistory = [];
+const v27BuildPayload = buildAppDataPayload;
+buildAppDataPayload = function(){const d=v27BuildPayload();d.varianceInventoryImportHistory=varianceInventoryImportHistory;return d;};
+const v27ApplyPayload = applyAppDataPayload;
+applyAppDataPayload = function(d){v27ApplyPayload(d);varianceInventoryImportHistory=Array.isArray(d.varianceInventoryImportHistory)?d.varianceInventoryImportHistory:[];};
+function activeWorkspacePeriod(){return monthlyFoodCostDatabase.find(r=>r.id===selectedCogsPeriodId&&r.property===currentProperty)||null;}
+function syncSharedPeriodIds(id){selectedCogsPeriodId=id||'';selectedVariancePeriodId=id||'';}
+function fillGlobalReportingPeriodSelector(){
+ const sel=document.getElementById('globalReportingPeriodSelector');if(!sel)return;
+ const records=cogsRecords();let active=activeWorkspacePeriod();
+ if(!active&&records.length){syncSharedPeriodIds(records[0].id);active=records[0];}
+ sel.innerHTML=records.length?records.map(r=>`<option value="${escapeHtml(r.id)}" ${r.id===selectedCogsPeriodId?'selected':''}>${escapeHtml(reportingPeriodLabel(r))}</option>`).join(''):'<option value="">No reporting periods</option>';
+ sel.value=active?.id||'';
+ const status=document.getElementById('globalPeriodStatus');if(status)status.textContent=active?(active.finalized?'Finalized':'Open'):'';
+}
+function changeGlobalReportingPeriod(id){
+ if(menuMixDirty){if(!confirm('The current menu mix has unsaved changes.\n\nOK = Save changes and switch periods\nCancel = Stay on the current period')){fillGlobalReportingPeriodSelector();return;}saveMenuMix(false);}
+ syncSharedPeriodIds(id);const r=activeWorkspacePeriod();loadMenuMix(r?.menuMixSnapshot||[]);renderAllPeriodWorkspace();saveAllDataToBrowser(false);
+}
+function sourceImportSummary(period,type){const rows=varianceInventoryImportHistory.filter(x=>x.property===currentProperty&&x.periodId===period?.id&&x.type===type).sort((a,b)=>String(b.importedAt).localeCompare(String(a.importedAt)));return rows[0]||null;}
+function workspaceHeadingHtml(period){if(!period)return '<strong>No reporting period selected</strong><span>Select or create a COGS reporting period before entering period activity.</span>';return `<strong>${escapeHtml(currentProperty)}</strong><span>${escapeHtml(reportingPeriodLabel(period))}</span><span>${period.finalized?'Finalized — read only':'Open period'}</span>`;}
+function readinessCard(label,value,note=''){return `<div class="readiness-card"><strong>${escapeHtml(label)}</strong>${escapeHtml(value)}${note?`<span>${escapeHtml(note)}</span>`:''}</div>`;}
+function renderPeriodWorkspaceContext(){
+ const r=activeWorkspacePeriod();fillGlobalReportingPeriodSelector();
+ const menu=document.getElementById('menuWorkspaceHeading'),variance=document.getElementById('varianceWorkspaceHeading');
+ if(menu)menu.innerHTML=workspaceHeadingHtml(r);if(variance)variance.innerHTML=workspaceHeadingHtml(r);
+ const panel=document.getElementById('varianceReadinessPanel');if(!panel)return;
+ if(!r){panel.innerHTML=readinessCard('Period Status','Not selected');return;}
+ const key=varianceDataKey(),entries=inventoryCountDatabase[key]||{};
+ const opening=Object.values(entries).some(e=>(Number(e?.opening?.cases)||0)!==0||(Number(e?.opening?.packQty)||0)!==0);
+ const purchase=sourceImportSummary(r,'velocity'),closing=sourceImportSummary(r,'closing');
+ const sold=currentPropertyMenuTotals().menus.reduce((n,m)=>n+(m.categories||[]).reduce((a,c)=>a+(c.items||[]).reduce((b,l)=>b+(Number(l.soldQty)||0),0),0),0);
+ const calc=varianceLastCalculated[key]||varianceLastCalculated[currentProperty];
+ panel.innerHTML=[readinessCard('Menu Sales',sold?`${sold.toLocaleString()} items loaded`:'Not loaded',r.menuMixSavedAt?`Saved ${new Date(r.menuMixSavedAt).toLocaleString('en-CA')}`:''),readinessCard('Opening Inventory',opening?'Ready':'Not prepared'),readinessCard('Purchases',purchase?'Imported':'Not imported',purchase?purchase.fileName:''),readinessCard('Closing Inventory',closing?'Imported':'Not imported',closing?closing.fileName:''),readinessCard('Variance',calc?'Calculated':'Not calculated',calc?new Date(calc).toLocaleString('en-CA'):'')].join('');
+}
+function renderAllPeriodWorkspace(){
+ fillPeriodSelectors();fillVariancePeriodSelector();renderPeriodControls();renderCogsDashboard();renderPropertyMenus();renderSelectedPropertyMenuDetails();renderVarianceTable();renderEngineering();renderPeriodWorkspaceContext();
+}
+const v27ChangeReportingPeriod=changeReportingPeriod;
+changeReportingPeriod=function(id){syncSharedPeriodIds(id===MENU_WORKSPACE?'':id);v27ChangeReportingPeriod(id);renderPeriodWorkspaceContext();fillGlobalReportingPeriodSelector();};
+const v27SelectCogsPeriod=selectCogsPeriod;
+selectCogsPeriod=function(id){syncSharedPeriodIds(id);v27SelectCogsPeriod(id);const r=activeWorkspacePeriod();loadMenuMix(r?.menuMixSnapshot||[]);renderAllPeriodWorkspace();};
+const v27ChangeVariancePeriod=changeVariancePeriod;
+changeVariancePeriod=function(id){syncSharedPeriodIds(id);const r=activeWorkspacePeriod();loadMenuMix(r?.menuMixSnapshot||[]);v27ChangeVariancePeriod(id);renderAllPeriodWorkspace();};
+const v27SaveMenuMix=saveMenuMix;
+saveMenuMix=function(show=true){v27SaveMenuMix(show);renderPeriodWorkspaceContext();};
+const v27ToggleFinalized=togglePeriodFinalized;
+togglePeriodFinalized=function(){v27ToggleFinalized();fillGlobalReportingPeriodSelector();renderPeriodWorkspaceContext();};
+const v27RenderVariance=renderVarianceTable;
+renderVarianceTable=function(){v27RenderVariance();renderPeriodWorkspaceContext();};
+const v27ApplyVarianceImport=applyVarianceImport;
+applyVarianceImport=function(){const p=pendingVarianceImport,period=variancePeriod();const valid=!!(p&&period&&p.periodId===period.id&&!p.rows.some(r=>!r.excluded&&!r.itemId));if(valid)varianceInventoryImportHistory.push({id:generateId('VARIMP'),property:currentProperty,periodId:period.id,type:p.type,fileName:p.fileName,importedAt:new Date().toISOString(),rowCount:p.rows.filter(r=>!r.excluded&&r.itemId).length,excludedCount:p.rows.filter(r=>r.excluded).length});v27ApplyVarianceImport();renderPeriodWorkspaceContext();};
+const v27EnsureEditMenu=ensureEditMenuItemModal;
+ensureEditMenuItemModal=function(){v27EnsureEditMenu();const h=[...document.querySelectorAll('#editMenuItemModal h3')].find(x=>/Ingredients/i.test(x.textContent));if(h){h.textContent='Ingredients';h.classList.add('recipe-ingredients-heading');}};
+const v27OpenEditPrep=openEditPrepModal;
+openEditPrepModal=function(){const h=document.querySelector('#prepForm h3.recipe-ingredients-heading')||[...document.querySelectorAll('#prepForm h3')].find(x=>x.textContent.trim()==='Ingredients');if(h)h.classList.add('recipe-ingredients-heading');v27OpenEditPrep();};
+const v27Refresh=refreshAllUI;
+refreshAllUI=function(){v27Refresh();fillGlobalReportingPeriodSelector();renderPeriodWorkspaceContext();};
+// Extend the existing active-property change listener without changing its core behaviour.
+document.getElementById('globalPropertySelector')?.addEventListener('change',()=>setTimeout(()=>{const first=cogsRecords()[0];syncSharedPeriodIds(first?.id||'');const r=activeWorkspacePeriod();loadMenuMix(r?.menuMixSnapshot||[]);renderAllPeriodWorkspace();},0));
