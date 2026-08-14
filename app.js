@@ -6526,3 +6526,47 @@ const v27Refresh=refreshAllUI;
 refreshAllUI=function(){v27Refresh();fillGlobalReportingPeriodSelector();renderPeriodWorkspaceContext();};
 // Extend the existing active-property change listener without changing its core behaviour.
 document.getElementById('globalPropertySelector')?.addEventListener('change',()=>setTimeout(()=>{const first=cogsRecords()[0];syncSharedPeriodIds(first?.id||'');const r=activeWorkspacePeriod();loadMenuMix(r?.menuMixSnapshot||[]);renderAllPeriodWorkspace();},0));
+
+// --- v28 BULK EXCLUDE-ONCE FOR UNMATCHED INVENTORY IMPORT ROWS ---
+function excludeAllUnmatchedVarianceRowsOnce(showMessage=true){
+    const p=pendingVarianceImport;
+    if(!p)return 0;
+    const rows=p.rows.filter(r=>!r.excluded&&!r.itemId);
+    rows.forEach(r=>{r.excluded=true;r.status='excludedOnce';});
+    if(rows.length){
+        renderVarianceImportReview();
+        if(showMessage)showToast(`${rows.length} unmatched item(s) excluded from this import only.`,'success');
+    }else if(showMessage){
+        showToast('There are no unmatched items left to exclude.','info');
+    }
+    return rows.length;
+}
+const v28EnsureVarianceImportModal=ensureVarianceImportModal;
+ensureVarianceImportModal=function(){
+    v28EnsureVarianceImportModal();
+    const modal=document.getElementById('varianceImportModal');
+    const tools=modal?.querySelector('.variance-import-tools');
+    if(tools&&!document.getElementById('excludeAllUnmatchedOnceBtn')){
+        const btn=document.createElement('button');
+        btn.type='button';
+        btn.id='excludeAllUnmatchedOnceBtn';
+        btn.className='mini-action-btn';
+        btn.textContent='Exclude All Unmatched Once';
+        btn.title='Exclude every item currently marked Needs Review from this import only';
+        btn.onclick=()=>excludeAllUnmatchedVarianceRowsOnce(true);
+        const search=tools.querySelector('input[type="search"]');
+        tools.insertBefore(btn,search||null);
+    }
+};
+const v28ApplyVarianceImport=applyVarianceImport;
+applyVarianceImport=function(){
+    const p=pendingVarianceImport;
+    if(!p)return;
+    const unmatched=p.rows.filter(r=>!r.excluded&&!r.itemId);
+    if(unmatched.length){
+        const proceed=confirm(`Apply this import and exclude ${unmatched.length} unmatched item(s) once?\n\nThe unmatched items will be skipped for this file only. They will appear for review again in future imports.`);
+        if(!proceed)return;
+        excludeAllUnmatchedVarianceRowsOnce(false);
+    }
+    v28ApplyVarianceImport();
+};
