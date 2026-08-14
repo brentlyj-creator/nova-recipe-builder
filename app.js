@@ -4838,7 +4838,7 @@ function downloadPriceUpdateReviewCsv() {
 		    document.getElementById('prepSteps').innerHTML = '';
 		    currentPrepIngredients = [];
 		    updatePrepIngredientTable();
-		    document.getElementById('prepCancelBtn').style.display = 'none';
+		    document.getElementById('prepCancelBtn').style.display = 'block';
 		    togglePortionWeight();
 		    populatePrepUsageUnit();
             closeEditPrepModal();
