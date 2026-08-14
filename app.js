@@ -6570,3 +6570,94 @@ applyVarianceImport=function(){
     }
     v28ApplyVarianceImport();
 };
+
+// --- v29 SYSCO VELOCITY IMPORT: EXCEL DATE + HEADER-SAFE REPAIR ---
+function varianceImportExcelDate(value){
+    if(value instanceof Date && !Number.isNaN(value.getTime()))return value;
+    if(typeof value==='number' && Number.isFinite(value)){
+        const parsed=window.XLSX?.SSF?.parse_date_code(value);
+        if(parsed)return new Date(parsed.y,parsed.m-1,parsed.d,parsed.H||0,parsed.M||0,Math.floor(parsed.S||0));
+    }
+    const text=String(value??'').trim();
+    if(!text)return null;
+    const date=new Date(text);
+    return Number.isNaN(date.getTime())?null:date;
+}
+function varianceImportHeaderMap(row){
+    const map={};
+    (row||[]).forEach((value,index)=>{const key=String(value??'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');if(key)map[key]=index;});
+    return map;
+}
+function varianceImportCell(row,map,names){
+    for(const name of names){const key=String(name).toUpperCase().replace(/[^A-Z0-9]/g,'');if(map[key]!==undefined)return row[map[key]];}
+    return '';
+}
+async function previewVarianceImport(file,type){
+    if(!file)return;
+    const period=variancePeriod();
+    if(!period){showToast('Select a reporting period before importing.','warning');return;}
+    if(!window.XLSX){showToast('Excel import library did not load.','error');return;}
+    try{
+        const workbook=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true});
+        const sheetName=type==='closing'?'Closing Inventory':(workbook.SheetNames.find(n=>String(n).trim().toLowerCase()==='report')||workbook.SheetNames[0]);
+        const sheet=workbook.Sheets[sheetName];
+        if(!sheet)throw new Error(`The required worksheet "${sheetName}" was not found.`);
+        const a=XLSX.utils.sheet_to_json(sheet,{header:1,defval:'',raw:true});
+        let rows=[];
+        let diagnostic='';
+        if(type==='closing'){
+            const header=a.findIndex(row=>row.some(v=>String(v).trim().toUpperCase()==='SKU')&&row.some(v=>String(v).trim().toUpperCase().includes('CLOSING')));
+            const fallback=header>=0?header:a.findIndex(row=>String(row[1]).trim()==='Category'&&String(row[2]).trim()==='SKU');
+            if(fallback<0)throw new Error('Closing Inventory headers were not found.');
+            const map=varianceImportHeaderMap(a[fallback]);
+            rows=a.slice(fallback+1).map(row=>({
+                sku:normalizeImportSku(varianceImportCell(row,map,['SKU','SUPC'])),
+                description:String(varianceImportCell(row,map,['Item Name','Description','Item Description'])||row[5]||'').trim(),
+                category:String(varianceImportCell(row,map,['Category'])||row[1]||'').trim(),
+                cases:Number(varianceImportCell(row,map,['Closing Case Count','Closing Cases','Case Count'])||row[6])||0,
+                pieces:Number(varianceImportCell(row,map,['Closing Each Count','Closing Each','Each Count','Piece Count'])||row[7])||0
+            })).filter(row=>row.sku&&row.description);
+        }else{
+            const header=a.findIndex(row=>row.some(v=>String(v).trim().toUpperCase()==='SUPC')&&row.some(v=>['CUST','CUSTOMER','CUSTOMERNUMBER'].includes(String(v).trim().toUpperCase().replace(/[^A-Z0-9]/g,''))));
+            if(header<0)throw new Error('Velocity headers were not found. Expected SUPC and Cust columns.');
+            const map=varianceImportHeaderMap(a[header]);
+            const customer=propertySyscoNumber();
+            if(!customer)throw new Error('Add the Sysco Customer Number to this property in Property Management first.');
+            const start=new Date(period.start+'T00:00:00');
+            const end=new Date(period.end+'T23:59:59.999');
+            const grouped=new Map();
+            let customerRows=0,dateRows=0,invalidDates=0;
+            a.slice(header+1).forEach(row=>{
+                const rowCustomer=normalizeSku(varianceImportCell(row,map,['Cust','Customer','Customer Number','Customer #']));
+                if(rowCustomer!==customer)return;
+                customerRows++;
+                const date=varianceImportExcelDate(varianceImportCell(row,map,['Date','Invoice Date']));
+                if(!date){invalidDates++;return;}
+                if(date<start||date>end)return;
+                dateRows++;
+                const sku=normalizeImportSku(varianceImportCell(row,map,['SUPC','SKU']));
+                if(!sku)return;
+                const x=grouped.get(sku)||{sku,description:String(varianceImportCell(row,map,['Item Description','Description'])||'').trim(),category:String(varianceImportCell(row,map,['Class Name','Class','Category'])||'').trim(),cases:0,pieces:0,catchWeight:false};
+                const catchWeight=String(varianceImportCell(row,map,['CW','Catch Weight'])).trim().toUpperCase()==='Y';
+                if(catchWeight){
+                    const price=Number(varianceImportCell(row,map,['Price']));
+                    const extSales=Number(varianceImportCell(row,map,['ExtSales','Ext Sales','Extended Sales']));
+                    if(price)x.pieces+=extSales/price;
+                    x.catchWeight=true;
+                }else{
+                    x.cases+=Number(varianceImportCell(row,map,['CSs','Cases','Case Qty']))||0;
+                    x.pieces+=Number(varianceImportCell(row,map,['PCs','Pieces','Piece Qty','Each']))||0;
+                }
+                grouped.set(sku,x);
+            });
+            rows=[...grouped.values()];
+            diagnostic=`Customer ${customer}: ${customerRows} source row(s), ${dateRows} within ${reportingPeriodLabel(period)}, ${invalidDates} invalid date(s).`;
+            if(!customerRows)throw new Error(`No Velocity rows were found for Sysco Customer Number ${customer}. Check the number saved for ${currentProperty}.`);
+            if(!dateRows)throw new Error(`Rows were found for customer ${customer}, but none fall within ${reportingPeriodLabel(period)}.`);
+        }
+        if(!rows.length)throw new Error(type==='velocity'?`No purchase rows remained after filtering. ${diagnostic}`:'No closing inventory rows were found.');
+        pendingVarianceImport={type,fileName:file.name,rows:matchVarianceRows(rows,type),periodId:period.id,diagnostic};
+        varianceImportFilter='all';varianceImportSearch='';renderVarianceImportReview();
+        if(diagnostic)showToast(diagnostic,'success');
+    }catch(err){console.error('Variance import failed:',err);showToast(err.message||'Unable to read workbook.','error');alert(`Import could not be loaded.\n\n${err.message||'Unable to read workbook.'}`);}
+}
