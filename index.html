@@ -434,7 +434,7 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
             .form-section { overflow-x:auto; }
         }
 
-</style>
+/* v23 */.period-workbar{display:grid;grid-template-columns:minmax(250px,1fr) auto auto auto;gap:12px;align-items:end;background:#eef5f3;border:1px solid #b9ddd4;border-radius:7px;padding:12px 14px;margin:12px 0 20px}.period-workbar .form-group{margin:0}.period-workbar button{width:auto;height:38px}.period-status{align-self:center;font-size:.82rem;font-weight:700}.period-status.dirty{color:#b36b00}.period-status.finalized{color:#117864}.engineering-controls{display:grid;grid-template-columns:repeat(3,minmax(190px,1fr));gap:14px}.engineering-category-filter{grid-column:1/-1}.category-chip-list{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}.category-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid #ccd5da;border-radius:16px;padding:5px 9px;background:#fff;font-size:.8rem}.category-chip input{width:auto}.engineering-summary{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:10px;margin:12px 0 18px}.quadrant-grid{display:grid;grid-template-columns:1fr 1fr;border:2px solid #34495e;border-radius:7px;overflow:hidden;margin-bottom:18px}.quadrant{min-height:200px;padding:12px;border:1px solid #d8dfe3}.quadrant p{font-size:.75rem;color:#657786}.quadrant.star{background:#e9f8f3}.quadrant.plowhorse{background:#fff7e6}.quadrant.puzzle{background:#eaf3fb}.quadrant.dog{background:#fdeeee}.eng-chip{display:inline-block;background:#fff;border:1px solid #bac3c8;border-radius:5px;padding:6px 8px;margin:4px;font-size:.75rem;max-width:210px}.eng-chip strong{display:block}.engineering-table-wrap{overflow-x:auto}.engineering-table-wrap table{min-width:1500px}.ingredient-picker-tools{display:flex;gap:10px;align-items:center;margin:0 22px 15px}.ingredient-type-filter{display:flex;gap:4px}.ingredient-type-filter button{padding:7px 10px;border:1px solid #ccd5da;background:#fff;border-radius:4px;font-weight:700}.ingredient-type-filter button.active{background:var(--secondary);color:#fff}.ingredient-bulk-footer{position:sticky;bottom:0;background:#fff;border-top:1px solid #ddd;padding:12px 0;display:flex;gap:12px;justify-content:flex-end;align-items:center;z-index:30}.ingredient-pick-cb{width:auto}.recipe-ingredient-row.drag-over td{border-top:3px solid var(--secondary)}.drag-handle{cursor:grab;color:#7f8c8d;font-weight:900;margin-right:7px}.ingredient-section-row td{background:#eef2f3!important;padding:4px 10px;font-size:.72rem;font-weight:900;text-transform:uppercase;letter-spacing:.8px}.section-btn{background:#657786!important}@media(max-width:900px){.period-workbar{grid-template-columns:1fr 1fr}.engineering-controls{grid-template-columns:1fr}.engineering-summary{grid-template-columns:repeat(2,1fr)}.quadrant-grid{grid-template-columns:1fr}}</style>
 
     <meta name="theme-color" content="#18bc9c">
     <meta name="application-name" content="Nova Recipe Builder">
@@ -451,6 +451,7 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
         <div class="sidebar-section-label">Operations</div>
         <button class="nav-btn active" onclick="openTab(event,'cogs-dashboard')" title="COGS Dashboard"><span class="nav-icon">◫</span><span class="nav-label">COGS Dashboard</span></button>
         <button class="nav-btn" onclick="openTab(event,'menu-builder')" title="Menus"><span class="nav-icon">▤</span><span class="nav-label">Menus</span></button>
+<button class="nav-btn" onclick="openTab(event,'menu-engineering')" title="Menu Engineering"><span class="nav-icon">◩</span><span class="nav-label">Menu Engineering</span></button>
         <button class="nav-btn dropdown-toggle" onclick="toggleDropdown(event,'itemMenu')" title="Items"><span class="nav-icon">▦</span><span class="nav-label">Items</span></button>
         <div id="itemMenu" class="sub-nav">
             <button class="nav-btn" onclick="openTab(event,'items')"><span class="nav-icon">•</span><span class="nav-label">Item Master</span></button>
@@ -484,7 +485,7 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
         <div id="cogs-dashboard" class="tab-content active"><div class="cogs-head"><div><h2>COGS Dashboard (<span class="display-property-name"></span>)</h2><p>Monthly hotel-reported food cost compared with budget and the saved theoretical snapshot.</p></div><div class="cogs-top-actions"><div class="cogs-budget-control"><label for="propertyBudgetFc">Property Budget FC</label><input type="number" id="propertyBudgetFc" step="0.01" min="0" max="100" placeholder="e.g. 31.50"><span>%</span><button type="button" class="action-btn" onclick="savePropertyBudgetFc()">Save Budget</button></div><button type="button" class="action-btn cogs-pdf-btn" onclick="exportSelectedCogsPdf()">Export PDF</button><button type="button" class="btn-submit" style="width:auto;background:var(--info)" onclick="openMonthlyFoodCostModal()">+ Add Monthly Food Cost</button></div></div><div class="form-section"><div style="display:flex;justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap"><div class="form-group"><label>Selected Reporting Period</label><select id="cogsPeriodSelector" onchange="selectCogsPeriod(this.value)" style="width:auto;min-width:240px"></select></div><div id="cogsSelectedActions"></div></div><div id="cogsDashboardSummary"></div></div><div class="form-section"><h3>Monthly Food Cost History</h3><div id="cogsDashboardHistory" class="cogs-history-wrap"></div></div></div>
         <div id="menu-builder" class="tab-content">
             <h2>Menus</h2>
-            <p>Select your property from the sidebar. Build property-specific menus, categories, sales counts, and theoretical food cost.</p>
+            <p>Select your property from the sidebar. Build property-specific menus, categories, sales counts, and theoretical food cost.</p><div class="period-workbar"><div class="form-group"><label>Reporting Period</label><select id="menuPeriodSelector" onchange="changeReportingPeriod(this.value)"></select></div><div id="menuPeriodStatus" class="period-status"></div><button id="saveMenuMixBtn" type="button" class="btn-submit" onclick="saveMenuMix()">Save Menu Mix</button><button id="finalizePeriodBtn" type="button" class="action-btn" onclick="togglePeriodFinalized()">Finalize Period</button></div>
 
             <div class="collapsible-workflow"><button type="button" class="workflow-toggle" onclick="toggleWorkflowPanel('menuSetupPanel',this)">+ Menu &amp; Category Setup</button><div id="menuSetupPanel" class="workflow-panel">
             <div class="grid-2">
@@ -563,7 +564,7 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
             </div>
         </div>
 
-        <div id="hotels" class="tab-content">
+        <div id="menu-engineering" class="tab-content"><div class="cogs-head"><div><h2>Menu Engineering (<span class="display-property-name"></span>)</h2><p>Popularity and contribution-margin analysis from the selected monthly menu mix.</p></div><button class="btn-submit" style="width:auto" onclick="exportEngineeringPdf()">Export PDF Summary</button></div><div class="engineering-controls form-section"><div class="form-group"><label>Reporting Period</label><select id="engineeringPeriodSelector" onchange="changeReportingPeriod(this.value)"></select></div><div class="form-group"><label>Operational Menu</label><select id="engineeringMenuSelector" onchange="renderEngineering()"><option value="ALL">All Menus</option></select></div><div class="form-group"><label>Quadrant View</label><select id="engineeringViewMode" onchange="renderEngineering()"><option value="combined">Combined Categories</option><option value="individual">One Quadrant per Category</option></select></div><div class="engineering-category-filter"><label>Categories</label><div><button class="mini-action-btn" onclick="setEngCats('sales')">Only With Sales</button><button class="mini-action-btn" onclick="setEngCats('all')">Select All</button><button class="mini-action-btn" onclick="setEngCats('none')">Clear</button></div><div id="engineeringCategoryChecklist" class="category-chip-list"></div></div></div><div id="engineeringSummaryCards" class="engineering-summary"></div><div id="engineeringQuadrants"></div><div class="form-section"><h3>Detailed Analysis</h3><div class="engineering-table-wrap"><table><thead><tr><th>Menu</th><th>Category</th><th>Item</th><th>Sold</th><th>Sales Mix</th><th>Price</th><th>Plate Cost</th><th>FC %</th><th>CM / Item</th><th>Total Sales</th><th>Total Food Cost</th><th>Total CM</th><th>Class</th><th>Action</th></tr></thead><tbody id="engineeringDetailBody"></tbody></table></div></div><div id="engineeringNoSales" class="form-section"></div></div><div id="hotels" class="tab-content">
             <h2>Property & Settings Management</h2>
 
             <!-- ROW 1: Add/Edit Property + Current Properties, 50/50 -->
@@ -997,7 +998,7 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
                     </table>
                     
                     <div class="btn-group" style="margin-bottom: 25px;">
-                        <button type="button" class="btn-submit" onclick="openIngredientModal('prep')" style="width: auto; background-color: #34495e;">+ Add Ingredient</button>
+                        <button type="button" class="btn-submit" onclick="openIngredientModal('prep')" style="width:auto;background:#34495e">+ Add Ingredient</button><button type="button" class="btn-submit section-btn" onclick="addIngredientSection('prep')" style="width:auto">+ Add Section Heading</button>
                     </div>
 
                     <h3>Steps of Preparation</h3>
@@ -1134,7 +1135,7 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
                         </tbody>
                     </table>
                     <div class="btn-group" style="margin-bottom: 25px;">
-                        <button type="button" class="btn-submit" onclick="openIngredientModal('menu')" style="width: auto; background-color: #34495e;">+ Add Ingredient</button>
+                        <button type="button" class="btn-submit" onclick="openIngredientModal('menu')" style="width:auto;background:#34495e">+ Add Ingredient</button><button type="button" class="btn-submit section-btn" onclick="addIngredientSection('menu')" style="width:auto">+ Add Section Heading</button>
                     </div>
                     
 					<hr style="border: 0; border-top: 1px solid var(--border-color); margin: 20px 0;">
@@ -1233,12 +1234,12 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
                 <h2>Select Ingredient</h2>
                 <span class="close" onclick="closeModal('ingredientModal')">&times;</span>
             </div>
-            <input type="text" id="modalSearch" class="search-bar" style="width: 100%; margin-bottom: 20px;" placeholder="Search Global Inventory or Local Prep Bases...">
+            <div class="ingredient-picker-tools"><input type="text" id="modalSearch" class="search-bar" style="flex:1" placeholder="Search Global Inventory or Local Prep Bases..."><div class="ingredient-type-filter"><button data-type="all" class="active" onclick="setPickerType('all',this)">All</button><button data-type="raw" onclick="setPickerType('raw',this)">Items</button><button data-type="prep" onclick="setPickerType('prep',this)">Prep Recipes</button></div></div>
             
             <table id="modalTable">
                 <thead>
                     <tr>
-                        <th>Item Name</th>
+                        <th style="width:34px"><input type="checkbox" id="ingredientSelectAll" onchange="selectAllPicker(this.checked)"></th><th>Item Name</th>
                         <th>Pack Breakdown</th>
                         <th>Type</th>
                         <th>Recipe Unit</th>
@@ -1248,7 +1249,7 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
                 </thead>
                 <tbody id="modalTableBody">
                 </tbody>
-            </table>
+            </table><div class="ingredient-bulk-footer"><span id="ingredientBulkCount">0 selected</span><button class="btn-submit" style="width:auto" onclick="addSelectedIngredients()">Add Selected Ingredients</button></div>
         </div>
     </div>
 
