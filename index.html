@@ -441,6 +441,132 @@ body.sidebar-collapsed .sidebar{overflow:visible}body.sidebar-collapsed .sub-nav
 
 /* v27 period clarity and requested alignment only */
 .page-context-bar{display:grid;grid-template-columns:auto minmax(300px,1fr) auto minmax(390px,auto);align-items:center;column-gap:18px}.global-period-context{display:flex;align-items:center;justify-content:center;gap:6px;color:#657786;font-size:.86rem;min-width:0}.global-period-context select{width:auto;max-width:260px;height:30px;padding:3px 7px;font-weight:700}.page-context-property{white-space:nowrap}.page-context-bar .quick-converter{justify-self:end;min-width:390px}.page-context-bar .quick-converter-output{min-width:125px}.property-management-grid{grid-template-columns:minmax(280px,1fr) minmax(620px,2fr)!important}#propertyTable th:last-child,#propertyTable td:last-child{min-width:135px;white-space:nowrap}#propertyTable td:last-child .action-btn{display:inline-flex;margin-bottom:0}#categoryTableBody td:last-child{white-space:nowrap;vertical-align:top}#categoryTableBody td:last-child .action-btn{display:inline-flex;vertical-align:top;margin-bottom:0}.section-heading-btn{font-size:1rem!important;font-weight:bold!important;padding:10px 20px!important;min-height:40px!important;margin:0!important}.workspace-heading{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:-5px 0 13px;padding:9px 12px;border:1px solid var(--border-color);border-radius:5px;background:#f8f9fa;font-size:.86rem}.workspace-heading strong{color:var(--primary)}.period-readiness{display:grid;grid-template-columns:repeat(5,minmax(140px,1fr));gap:9px;margin:10px 0 16px}.readiness-card{border:1px solid var(--border-color);border-radius:5px;padding:9px 11px;background:#f8f9fa;font-size:.78rem}.readiness-card strong{display:block;margin-bottom:3px;color:var(--primary)}.readiness-card span{color:#657786}.recipe-ingredients-heading{position:sticky;top:0;z-index:42;background:#fff;margin:0!important;padding:14px 0 10px;border-bottom:1px solid var(--border-color)}#editPrepRecipeModal #prepIngredients thead th,#editMenuItemModal table:has(#editMenuModalIngredientsBody) thead th{top:51px!important;z-index:43}#editPrepRecipeModal #prepIngredients,#editMenuItemModal table:has(#editMenuModalIngredientsBody){margin-top:0}@media(max-width:1250px){.page-context-bar{grid-template-columns:auto 1fr auto}.page-context-bar .quick-converter{grid-column:1/-1;justify-self:end}.property-management-grid{grid-template-columns:minmax(260px,1fr) minmax(500px,2fr)!important}}@media(max-width:900px){.page-context-bar{display:flex;flex-wrap:wrap}.global-period-context{order:3;width:100%;justify-content:flex-start}.page-context-bar .quick-converter{margin-left:auto}.property-management-grid{grid-template-columns:1fr!important}.period-readiness{grid-template-columns:repeat(2,minmax(140px,1fr))}}
+
+
+/* v30 requested ingredient modal centering and recipe editor spacing */
+#ingredientModal {
+    padding: 24px !important;
+    overflow: hidden !important;
+    box-sizing: border-box;
+}
+#ingredientModal .modal-content {
+    position: absolute !important;
+    inset: 50% auto auto 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: calc(100vw - 64px) !important;
+    max-width: 1450px !important;
+    height: calc(100vh - 64px) !important;
+    max-height: 920px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    box-sizing: border-box;
+}
+#ingredientModal .modal-header {
+    flex: 0 0 auto;
+    padding: 22px 28px !important;
+    margin: 0 !important;
+}
+#ingredientModal #modalSearch {
+    flex: 0 0 auto;
+    width: calc(100% - 56px) !important;
+    margin: 20px 28px 18px !important;
+}
+#ingredientModal #modalTable {
+    display: block;
+    width: calc(100% - 56px);
+    margin: 0 28px 24px !important;
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex: 1 1 auto;
+    min-height: 0;
+    table-layout: fixed;
+}
+#ingredientModal #modalTable thead,
+#ingredientModal #modalTable tbody {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+}
+#ingredientModal #modalTable thead {
+    position: sticky;
+    top: 0;
+    z-index: 25;
+}
+#ingredientModal #modalTable thead th {
+    position: static !important;
+    top: auto !important;
+}
+#ingredientModal #modalTable th,
+#ingredientModal #modalTable td {
+    padding: 14px 12px;
+    vertical-align: middle;
+}
+#ingredientModal #modalTable th:nth-child(1),
+#ingredientModal #modalTable td:nth-child(1) { width: 8%; }
+#ingredientModal #modalTable th:nth-child(2),
+#ingredientModal #modalTable td:nth-child(2) { width: 27%; }
+#ingredientModal #modalTable th:nth-child(3),
+#ingredientModal #modalTable td:nth-child(3) { width: 16%; }
+#ingredientModal #modalTable th:nth-child(4),
+#ingredientModal #modalTable td:nth-child(4) { width: 15%; }
+#ingredientModal #modalTable th:nth-child(5),
+#ingredientModal #modalTable td:nth-child(5) { width: 14%; }
+#ingredientModal #modalTable th:nth-child(6),
+#ingredientModal #modalTable td:nth-child(6) { width: 20%; }
+
+/* Give recipe ingredient controls and the next section more breathing room. */
+#prepIngredients,
+#menuIngredients,
+#editMenuItemModal table:has(#editMenuModalIngredientsBody) {
+    margin-bottom: 16px !important;
+}
+#prepForm .btn-group:has(button[onclick*="openIngredientModal"]),
+#menuForm .btn-group:has(button[onclick*="openIngredientModal"]),
+#editMenuItemModal .btn-group:has(button[onclick*="openIngredientModal"]) {
+    align-items: center !important;
+    gap: 12px !important;
+    margin-top: 16px !important;
+    margin-bottom: 30px !important;
+}
+#prepForm .btn-group:has(button[onclick*="openIngredientModal"]) + h3,
+#menuForm .btn-group:has(button[onclick*="openIngredientModal"]) + hr,
+#editMenuItemModal .btn-group:has(button[onclick*="openIngredientModal"]) + hr {
+    margin-top: 8px !important;
+}
+#prepIngredients td:last-child,
+#menuIngredients td:last-child,
+#editMenuItemModal #editMenuModalIngredientsBody td:last-child {
+    white-space: nowrap !important;
+}
+#prepIngredients td:last-child button,
+#menuIngredients td:last-child button,
+#editMenuItemModal #editMenuModalIngredientsBody td:last-child button {
+    margin-left: 0 !important;
+    margin-right: 6px !important;
+}
+#prepIngredients td:last-child button:last-child,
+#menuIngredients td:last-child button:last-child,
+#editMenuItemModal #editMenuModalIngredientsBody td:last-child button:last-child {
+    margin-right: 0 !important;
+}
+@media (max-width: 760px) {
+    #ingredientModal { padding: 6px !important; }
+    #ingredientModal .modal-content {
+        width: calc(100vw - 12px) !important;
+        height: calc(100vh - 12px) !important;
+        max-height: none !important;
+    }
+    #ingredientModal #modalSearch,
+    #ingredientModal #modalTable {
+        width: calc(100% - 28px) !important;
+        margin-left: 14px !important;
+        margin-right: 14px !important;
+    }
+}
+
 </style>
 
     <meta name="theme-color" content="#18bc9c">
