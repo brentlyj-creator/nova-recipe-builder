@@ -5490,7 +5490,10 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
 			// Update the increment if the user changes the unit.
 			unitSel.onchange = updateEditIngredientQuantityStep;
 			
-			document.getElementById('editIngredientModal').style.display = 'block';
+            const editModal = document.getElementById('editIngredientModal');
+            editModal.dataset.ingredientTarget = target;
+            editModal.dataset.ingredientIndex = String(index);
+            editModal.style.display = 'block';
 	        }
 
         function cancelEditIngredientModal() {
@@ -5500,9 +5503,12 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
         }
 
         function saveEditIngredientModal() {
-            if (editIngredientModalTarget === null || editIngredientModalIndex === null) return;
-            const arr = editIngredientModalTarget === 'prep' ? currentPrepIngredients : (editIngredientModalTarget === 'editMenuModal' ? currentEditMenuModalIngredients : currentMenuIngredients);
-            const ing = arr[editIngredientModalIndex];
+            const editModal = document.getElementById('editIngredientModal');
+            const target = editIngredientModalTarget ?? editModal?.dataset.ingredientTarget;
+            const index = editIngredientModalIndex ?? Number(editModal?.dataset.ingredientIndex);
+            if (!target || !Number.isInteger(Number(index))) return;
+            const arr = target === 'prep' ? currentPrepIngredients : (target === 'editMenuModal' ? currentEditMenuModalIngredients : currentMenuIngredients);
+            const ing = arr[Number(index)];
             if (!ing) return;
 
             const newQty = parseFloat(document.getElementById('editIngredientModalQty').value);
@@ -5517,8 +5523,8 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
             ing.unit = newUnit;
             ing.totalCost = getLiveIngredientTotalCost(ing);
 
-            if (editIngredientModalTarget === 'prep') updatePrepIngredientTable();
-            else if (editIngredientModalTarget === 'editMenuModal') updateEditMenuModalIngredientTable();
+            if (target === 'prep') updatePrepIngredientTable();
+            else if (target === 'editMenuModal') updateEditMenuModalIngredientTable();
             else updateMenuIngredientTable();
 
             cancelEditIngredientModal();
