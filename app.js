@@ -4799,7 +4799,14 @@ function downloadPriceUpdateReviewCsv() {
 
         function closeEditPrepModal() {
             const modal = document.getElementById('editPrepRecipeModal');
-            const section = document.getElementById('prepForm')?.closest('.form-section');
+            const form = document.getElementById('prepForm');
+            const section = form?.closest('.form-section');
+            const footer = modal?.querySelector(':scope > .modal-content > .recipe-modal-footer');
+            if (footer && form) {
+                footer.classList.remove('recipe-modal-footer');
+                footer.querySelector('button[type="submit"]')?.removeAttribute('form');
+                form.appendChild(footer);
+            }
             if (section && prepEditFormPlaceholder?.parentNode) {
                 prepEditFormPlaceholder.parentNode.insertBefore(section, prepEditFormPlaceholder);
                 prepEditFormPlaceholder.remove();
