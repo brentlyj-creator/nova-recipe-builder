@@ -6391,3 +6391,18 @@ const v24Classify=classifyEngineering;classifyEngineering=function(rows){const o
  @media(max-width:900px){.sales-import-filterbar{align-items:stretch}.sales-import-search{width:100%}}
  `;document.head.appendChild(style);
 })();
+
+// v26 more breathing room for ingredient selection used by prep and menu recipes
+(function injectIngredientSelectionBuffer(){
+ if(document.getElementById('ingredientSelectionBufferStyles'))return;
+ const style=document.createElement('style');style.id='ingredientSelectionBufferStyles';style.textContent=`
+ #ingredientModal .modal-content{width:88%;max-width:1450px;height:88vh;max-height:88vh;margin:5vh auto}
+ #ingredientModal .modal-header{padding:22px 28px 18px}
+ #ingredientModal .modal-content>:not(.modal-header){margin-left:28px;margin-right:28px}
+ #ingredientModal #ingredientSearch{margin-top:20px;margin-bottom:18px}
+ #ingredientModal table th,#ingredientModal table td{padding:14px 12px}
+ #ingredientModal table input[type=number]{min-width:92px}
+ #ingredientModal table select{min-width:145px}
+ @media(max-width:900px){#ingredientModal .modal-content{width:97%;max-width:97%;height:96vh;max-height:96vh;margin:2vh auto}#ingredientModal .modal-content>:not(.modal-header){margin-left:14px;margin-right:14px}}
+ `;document.head.appendChild(style);
+})();
