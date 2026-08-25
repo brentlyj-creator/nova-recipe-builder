@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nova-recipe-builder-github-pages-v100';
+const CACHE_NAME = 'nova-recipe-builder-github-pages-v101';
 const BASE_PATH = '/nova-recipe-builder/';
 
 const APP_SHELL = [
