@@ -35,7 +35,20 @@
         const ITEMS_PER_PAGE = 100;
         const APP_VERSION = '21.0';
         const APP_STORAGE_KEY = `fb_recipe_cogs_manager_v${APP_VERSION.replace('.', '_')}`;
-        const LEGACY_STORAGE_KEYS = ['fb_recipe_cogs_manager_v20_0'];
+        const LEGACY_STORAGE_KEYS = [
+            'fb_recipe_cogs_manager_v20_0',
+            'fb_recipe_cogs_manager_v20',
+            'fb_recipe_cogs_manager_v19_0',
+            'fb_recipe_cogs_manager_v19',
+            'fb_recipe_cogs_manager_v18_0',
+            'fb_recipe_cogs_manager_v18',
+            'fb_recipe_cogs_manager_v17_0',
+            'fb_recipe_cogs_manager_v17',
+            'fb_recipe_cogs_manager_v16_0',
+            'fb_recipe_cogs_manager_v16',
+            'fb_recipe_cogs_manager_v15_0',
+            'fb_recipe_cogs_manager_v15'
+        ];
 
         // --- PROPERTY & CATEGORY MANAGEMENT LOGIC ---
         const REPORTING_GROUPS = ['Food','LWB','Non Alc','Unassigned'];
@@ -661,23 +674,37 @@ function executeBulkExport() {
             try {
                 let raw = localStorage.getItem(APP_STORAGE_KEY);
                 let loadedLegacyKey = null;
+
                 if (!raw) {
                     for (const key of LEGACY_STORAGE_KEYS) {
                         raw = localStorage.getItem(key);
-                        if (raw) { loadedLegacyKey = key; break; }
+                        if (raw) {
+                            loadedLegacyKey = key;
+                            break;
+                        }
                     }
                 }
+
                 if (!raw) return false;
+
                 applyAppDataPayload(JSON.parse(raw));
                 reconcilePrepCategories();
                 refreshAllUI();
-               if (loadedLegacyKey) {
-    const migrated = saveAllDataToBrowser(false);
 
-    if (migrated) {
-        localStorage.removeItem(loadedLegacyKey);
-    }
-}
+                if (loadedLegacyKey) {
+                    const migrated = saveAllDataToBrowser(false);
+                    if (migrated) {
+                        localStorage.removeItem(loadedLegacyKey);
+                    }
+                }
+
+                return true;
+            } catch (err) {
+                console.error(err);
+                return false;
+            }
+        }
+
         // --- PWA + LOCAL BACKUP FOLDER SUPPORT ---
         const BACKUP_DB_NAME = 'nova_recipe_builder_backup_db';
         const BACKUP_STORE_NAME = 'settings';
@@ -782,51 +809,62 @@ function executeBulkExport() {
         }
 
         function importAllDataFromFile(file) {
-    if (!file) {
-        showToast('Please select a file to import.', 'warning');
-        return;
-    }
-    const reader = new FileReader();
-   reader.onload = function(e) {
-    try {
-        const data = JSON.parse(e.target.result);
+            if (!file) {
+                showToast('Please select a file to import.', 'warning');
+                return;
+            }
 
-                const fileDate = data.exportedAt ? new Date(data.exportedAt) : null;
-        const now = new Date();
-        const diffHours = fileDate ? Math.round((now - fileDate) / 1000 / 60 / 60) : null;
+            const reader = new FileReader();
 
-        let confirmMessage;
-        if (!fileDate) {
-            confirmMessage = 'Import this file and replace all current data?';
-        } else if (diffHours < 1) {
-            confirmMessage = 'Import this file?\n\nThis file was exported less than an hour ago.';
-        } else if (diffHours < 24) {
-            confirmMessage = 'Import this file?\n\nThis file was exported ' + diffHours + ' hour(s) ago.';
-        } else {
-            const diffDays = Math.round(diffHours / 24);
-            confirmMessage = 'Warning: This file is ' + diffDays + ' day(s) old.\n\nAre you sure you want to load this older file and replace your current data?';
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    const fileDate = data.exportedAt ? new Date(data.exportedAt) : null;
+                    const now = new Date();
+                    const diffHours = fileDate ? Math.round((now - fileDate) / 1000 / 60 / 60) : null;
+                    let confirmMessage;
+
+                    if (!fileDate) {
+                        confirmMessage = 'Import this file and replace all current data?';
+                    } else if (diffHours < 1) {
+                        confirmMessage = 'Import this file?\n\nThis file was exported less than an hour ago.';
+                    } else if (diffHours < 24) {
+                        confirmMessage = 'Import this file?\n\nThis file was exported ' + diffHours + ' hour(s) ago.';
+                    } else {
+                        const diffDays = Math.round(diffHours / 24);
+                        confirmMessage = 'Warning: This file is ' + diffDays + ' day(s) old.\n\nAre you sure you want to load this older file and replace your current data?';
+                    }
+
+                    if (!confirm(confirmMessage)) return;
+
+                    applyAppDataPayload(data);
+                    const saved = saveAllDataToBrowser(false);
+
+                    if (!saved) {
+                        showToast(
+                            'The file was opened, but it could not be saved because browser storage is full. Keep your backup file and clear obsolete app storage before trying again.',
+                            'error'
+                        );
+                        return;
+                    }
+
+                    refreshAllUI();
+                    showToast('Data imported and saved successfully.', 'success');
+                } catch (err) {
+                    console.error(err);
+                    showToast('This file is not a valid app data file.', 'error');
+                }
+            };
+
+            reader.onerror = function() {
+                console.error(reader.error);
+                showToast('The selected data file could not be read.', 'error');
+            };
+
+            reader.readAsText(file);
         }
 
-        if (!confirm(confirmMessage)) return;
-
-       applyAppDataPayload(data);
-
-		const saved = saveAllDataToBrowser(false);
-		
-		if (!saved) {
-		    showToast(
-		        'The file loaded, but browser storage is full. Export a backup and clear older app data.',
-		        'error'
-		    );
-		    return;
-		}
-		
-		refreshAllUI();
-		showToast('Data imported and saved successfully.', 'success');
-		    reader.readAsText(file) ;
-}
-
-                function refreshAllUI() {
+        function refreshAllUI() {
             initSettings();
             updateUIPropertyNames();
             updateItemCategoryDropdown();
