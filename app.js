@@ -656,11 +656,62 @@ function executeBulkExport() {
             selectedMenuId = null;
         }
 
-        function saveAllDataToBrowser(showMessage = false) {
+        const APP_DATA_DB_NAME = 'fb_recipe_cogs_manager_data';
+        const APP_DATA_STORE_NAME = 'appState';
+        const APP_DATA_RECORD_KEY = 'current';
+
+        function openAppDataDb() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(APP_DATA_DB_NAME, 1);
+                request.onupgradeneeded = () => {
+                    const db = request.result;
+                    if (!db.objectStoreNames.contains(APP_DATA_STORE_NAME)) {
+                        db.createObjectStore(APP_DATA_STORE_NAME);
+                    }
+                };
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async function writeAppDataToIndexedDb(payload) {
+            const db = await openAppDataDb();
             try {
-                localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(buildAppDataPayload()));
+                await new Promise((resolve, reject) => {
+                    const tx = db.transaction(APP_DATA_STORE_NAME, 'readwrite');
+                    tx.objectStore(APP_DATA_STORE_NAME).put(payload, APP_DATA_RECORD_KEY);
+                    tx.oncomplete = () => resolve(true);
+                    tx.onerror = () => reject(tx.error);
+                    tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction was aborted.'));
+                });
+                return true;
+            } finally {
+                db.close();
+            }
+        }
+
+        async function readAppDataFromIndexedDb() {
+            const db = await openAppDataDb();
+            try {
+                return await new Promise((resolve, reject) => {
+                    const tx = db.transaction(APP_DATA_STORE_NAME, 'readonly');
+                    const request = tx.objectStore(APP_DATA_STORE_NAME).get(APP_DATA_RECORD_KEY);
+                    request.onsuccess = () => resolve(request.result || null);
+                    request.onerror = () => reject(request.error);
+                });
+            } finally {
+                db.close();
+            }
+        }
+
+        async function saveAllDataToBrowser(showMessage = false) {
+            try {
+                const payload = buildAppDataPayload();
+                await writeAppDataToIndexedDb(payload);
                 markClean();
-                if (showMessage) showToast('All data saved to this browser successfully.', 'success');
+                if (showMessage) {
+                    showToast('All data saved to this browser successfully.', 'success');
+                }
                 return true;
             } catch (err) {
                 console.error(err);
@@ -670,32 +721,38 @@ function executeBulkExport() {
             }
         }
 
-                function loadAllDataFromBrowser() {
+        async function loadAllDataFromBrowser() {
             try {
-                let raw = localStorage.getItem(APP_STORAGE_KEY);
+                let data = await readAppDataFromIndexedDb();
                 let loadedLegacyKey = null;
 
-                if (!raw) {
-                    for (const key of LEGACY_STORAGE_KEYS) {
-                        raw = localStorage.getItem(key);
-                        if (raw) {
-                            loadedLegacyKey = key;
-                            break;
+                if (!data) {
+                    let raw = localStorage.getItem(APP_STORAGE_KEY);
+
+                    if (!raw) {
+                        for (const key of LEGACY_STORAGE_KEYS) {
+                            raw = localStorage.getItem(key);
+                            if (raw) {
+                                loadedLegacyKey = key;
+                                break;
+                            }
                         }
                     }
+
+                    if (raw) data = JSON.parse(raw);
                 }
 
-                if (!raw) return false;
+                if (!data) return false;
 
-                applyAppDataPayload(JSON.parse(raw));
+                applyAppDataPayload(data);
                 reconcilePrepCategories();
                 refreshAllUI();
 
-                if (loadedLegacyKey) {
-                    const migrated = saveAllDataToBrowser(false);
-                    if (migrated) {
-                        localStorage.removeItem(loadedLegacyKey);
-                    }
+                const migrated = await saveAllDataToBrowser(false);
+                if (migrated) {
+                    localStorage.removeItem(APP_STORAGE_KEY);
+                    LEGACY_STORAGE_KEYS.forEach(key => localStorage.removeItem(key));
+                    if (loadedLegacyKey) localStorage.removeItem(loadedLegacyKey);
                 }
 
                 return true;
@@ -816,7 +873,7 @@ function executeBulkExport() {
 
             const reader = new FileReader();
 
-            reader.onload = function(e) {
+            reader.onload = async function(e) {
                 try {
                     const data = JSON.parse(e.target.result);
                     const fileDate = data.exportedAt ? new Date(data.exportedAt) : null;
@@ -838,7 +895,7 @@ function executeBulkExport() {
                     if (!confirm(confirmMessage)) return;
 
                     applyAppDataPayload(data);
-                    const saved = saveAllDataToBrowser(false);
+                    const saved = await saveAllDataToBrowser(false);
 
                     if (!saved) {
                         showToast(
@@ -5877,8 +5934,8 @@ const menuData = { id, property: currentProperty, name, category, targetPrice, f
             if (e.target.matches('input, select, textarea')) markDirty();
         });
 // --- Init App ---
-               (function initApp() {
-            const loaded = loadAllDataFromBrowser();
+               (async function initApp() {
+            const loaded = await loadAllDataFromBrowser();
 
             if (!loaded) {
                 initSettings();
