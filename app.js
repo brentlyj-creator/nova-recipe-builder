@@ -35,7 +35,7 @@
         const ITEMS_PER_PAGE = 100;
         const APP_VERSION = '21.0';
         const APP_STORAGE_KEY = `fb_recipe_cogs_manager_v${APP_VERSION.replace('.', '_')}`;
-        const LEGACY_STORAGE_KEYS = ['fb_recipe_cogs_manager_v20_0', 'fb_recipe_cogs_manager_v20', 'fb_recipe_cogs_manager_v19_0', 'fb_recipe_cogs_manager_v19', 'fb_recipe_cogs_manager_v18_0', 'fb_recipe_cogs_manager_v18', 'fb_recipe_cogs_manager_v17_0', 'fb_recipe_cogs_manager_v17', 'fb_recipe_cogs_manager_v16_0', 'fb_recipe_cogs_manager_v16', 'fb_recipe_cogs_manager_v15', 'fb_recipe_cogs_manager_v15_0'];
+        const LEGACY_STORAGE_KEYS = ['fb_recipe_cogs_manager_v20_0'];
 
         // --- PROPERTY & CATEGORY MANAGEMENT LOGIC ---
         const REPORTING_GROUPS = ['Food','LWB','Non Alc','Unassigned'];
@@ -671,12 +671,13 @@ function executeBulkExport() {
                 applyAppDataPayload(JSON.parse(raw));
                 reconcilePrepCategories();
                 refreshAllUI();
-                if (loadedLegacyKey) saveAllDataToBrowser(false);
-                return true;
-            } catch (err) { console.error(err); return false; }
-        }
+               if (loadedLegacyKey) {
+    const migrated = saveAllDataToBrowser(false);
 
-
+    if (migrated) {
+        localStorage.removeItem(loadedLegacyKey);
+    }
+}
         // --- PWA + LOCAL BACKUP FOLDER SUPPORT ---
         const BACKUP_DB_NAME = 'nova_recipe_builder_backup_db';
         const BACKUP_STORE_NAME = 'settings';
@@ -808,16 +809,21 @@ function executeBulkExport() {
 
         if (!confirm(confirmMessage)) return;
 
-        applyAppDataPayload(data);
-        saveAllDataToBrowser(false);
-        refreshAllUI();
-        showToast('Data imported successfully.', 'success');
-    } catch (err) {
-        console.error(err);
-        showToast('This file is not a valid app data file.', 'error');
-    }
-};
-    reader.readAsText(file) ;
+       applyAppDataPayload(data);
+
+		const saved = saveAllDataToBrowser(false);
+		
+		if (!saved) {
+		    showToast(
+		        'The file loaded, but browser storage is full. Export a backup and clear older app data.',
+		        'error'
+		    );
+		    return;
+		}
+		
+		refreshAllUI();
+		showToast('Data imported and saved successfully.', 'success');
+		    reader.readAsText(file) ;
 }
 
                 function refreshAllUI() {
